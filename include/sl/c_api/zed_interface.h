@@ -118,8 +118,9 @@ extern "C" {
     /**
     \brief Performs an hardware reset of the ZED 2 / ZED 2i.
     \param sn : serial number of the camera to reset, or 0 to reset the first camera detected.
+	\param fullReboot : Perform a full reboot (Sensors and Video modules)
      */
-    INTERFACE_API int sl_reboot(int sn);
+    INTERFACE_API int sl_reboot(int sn, bool full_reboot);
 
     /**
     \brief Creates a file for recording the ZED's output into a .SVO or .AVI video. An SVO is Stereolabs' own format designed for the ZED. It holds the video feed with timestamps as well as info about the camera used to record it.
@@ -888,6 +889,24 @@ extern "C" {
     \param camera_id : id of the camera instance.
      */
     INTERFACE_API void sl_disable_objects_detection(int camera_id);
+
+	/**
+	\brief Generate a UUID like unique ID to help identify and track AI detections
+	\param uuid : Unique ID generated.
+	\return : Size of the unique ID generated.
+	 */
+	INTERFACE_API int sl_generate_unique_id(char* uuid);
+
+	/**
+	\brief Feed the 3D Object tracking function with your own 2D bounding boxes from your own detection algorithm.
+	\param camera_id : id of the camera instance.
+	\param objects_in : 2D detections from custom detection algorithm.
+	\param nb_objects : number of custom objects (size of the object_in array).
+	\note The detection should be done on the current grabbed left image as the internal process will use all current available data to extract 3D informations and perform object tracking.
+	\return \ref SUCCESS if everything went fine, \ref ERROR_CODE::FAILURE otherwise
+   */
+	INTERFACE_API int sl_ingest_custom_box_objects(int camera_id, int nb_objects, struct SL_CustomBoxObjectData* objects_in);
+
     /**
     \brief Retrieve objects detected by the object detection module.
     \param camera_id : id of the camera instance.

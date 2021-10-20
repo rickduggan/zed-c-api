@@ -426,8 +426,8 @@ extern "C" {
         }
     }
 
-    INTERFACE_API int sl_reboot(int sn) {
-        return (int) sl::Camera::reboot(sn);
+    INTERFACE_API int sl_reboot(int sn, bool full_reboot) {
+        return (int) sl::Camera::reboot(sn, full_reboot);
     }
 
 
@@ -965,6 +965,24 @@ extern "C" {
             ZEDController::get(c_id)->disableObjectDetection();
         }
     }
+
+	INTERFACE_API int sl_generate_unique_id(char* id) {
+
+		sl::String sdk_id = sl::generate_unique_id();
+
+		memcpy(id, sdk_id.c_str(), sdk_id.size() * sizeof(char));
+
+		return sdk_id.size();
+	}
+
+	INTERFACE_API int sl_ingest_custom_box_objects(int c_id, int nb_objects, struct SL_CustomBoxObjectData* objects_in) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return (int)ZEDController::get(c_id)->ingestCustomBoxObjectData(nb_objects, objects_in);
+		}
+		else {
+			return (int)sl::ERROR_CODE::FAILURE;
+		}
+	}
 
     INTERFACE_API int sl_retrieve_objects(int c_id, SL_ObjectDetectionRuntimeParameters* runtimeParams, SL_Objects* objects) {
         if (!ZEDController::get(c_id)->isNull()) {

@@ -98,6 +98,7 @@ int ZEDController::initFromUSB(SL_InitParameters *params, const char* output_fil
     initParams.enable_image_enhancement = params->enable_image_enhancement;
     initParams.depth_maximum_distance = params->depth_maximum_distance;
     initParams.optional_opencv_calibration_file = opencv_calib_path;
+	initParams.open_timeout_sec = params->open_timeout_sec;
     return open();
 
 }
@@ -134,6 +135,7 @@ int ZEDController::initFromSVO(SL_InitParameters *params, const char* path_svo, 
     initParams.enable_image_enhancement = params->enable_image_enhancement;
     initParams.depth_maximum_distance = params->depth_maximum_distance;
     initParams.optional_opencv_calibration_file = opencv_calib_path;
+	initParams.open_timeout_sec = params->open_timeout_sec;
     return open();
 }
 
@@ -169,6 +171,7 @@ int ZEDController::initFromStream(SL_InitParameters *params, const char* ip, int
     initParams.enable_image_enhancement = params->enable_image_enhancement;
     initParams.depth_maximum_distance = params->depth_maximum_distance;
     initParams.optional_opencv_calibration_file = opencv_calib_path;
+	initParams.open_timeout_sec = params->open_timeout_sec;
     return open();
 }
 
@@ -229,6 +232,8 @@ SL_InitParameters* ZEDController::getInitParameters() {
 
     initParams->sensors_required = initParameters.sensors_required;
     initParams->enable_image_enhancement = initParameters.enable_image_enhancement;
+
+	initParams->open_timeout_sec = initParameters.open_timeout_sec;
 
     return initParams;
 }
@@ -499,17 +504,18 @@ sl::ERROR_CODE ZEDController::getSensorData(SL_SensorData *sensorData, int time_
         sensorData->barometer.relative_altitude = tmp_sensor_data.barometer.relative_altitude;
 
         ///Magneto
-        sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
-        sensorData->magnetometer.timestamp_ns = tmp_sensor_data.magnetometer.timestamp;
-        sensorData->magnetometer.magnetic_field.x = tmp_sensor_data.magnetometer.magnetic_field_calibrated.x;
-        sensorData->magnetometer.magnetic_field.y = tmp_sensor_data.magnetometer.magnetic_field_calibrated.y;
-        sensorData->magnetometer.magnetic_field.z = tmp_sensor_data.magnetometer.magnetic_field_calibrated.z;
-        sensorData->magnetometer.magnetic_field_unc.x = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.x;
-        sensorData->magnetometer.magnetic_field_unc.y = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.y;
-        sensorData->magnetometer.magnetic_field_unc.z = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.z;
-        sensorData->magnetometer.magnetic_field_c.x = tmp_sensor_data.magnetometer.magnetic_field_calibrated.x;
-        sensorData->magnetometer.magnetic_field_c.y = tmp_sensor_data.magnetometer.magnetic_field_calibrated.y;
-        sensorData->magnetometer.magnetic_field_c.z = tmp_sensor_data.magnetometer.magnetic_field_calibrated.z;
+		sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
+		sensorData->magnetometer.timestamp_ns = tmp_sensor_data.magnetometer.timestamp;
+		sensorData->magnetometer.magnetic_field_unc.x = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.x;
+		sensorData->magnetometer.magnetic_field_unc.y = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.y;
+		sensorData->magnetometer.magnetic_field_unc.z = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.z;
+		sensorData->magnetometer.magnetic_field_c.x = tmp_sensor_data.magnetometer.magnetic_field_calibrated.x;
+		sensorData->magnetometer.magnetic_field_c.y = tmp_sensor_data.magnetometer.magnetic_field_calibrated.y;
+		sensorData->magnetometer.magnetic_field_c.z = tmp_sensor_data.magnetometer.magnetic_field_calibrated.z;
+		sensorData->magnetometer.effective_rate = tmp_sensor_data.magnetometer.effective_rate;
+		sensorData->magnetometer.magnetic_heading = tmp_sensor_data.magnetometer.magnetic_heading;
+		sensorData->magnetometer.magnetic_heading_state = (SL_HEADING_STATE)tmp_sensor_data.magnetometer.magnetic_heading_state;
+		sensorData->magnetometer.magnetic_heading_accuracy = tmp_sensor_data.magnetometer.magnetic_heading_accuracy;
 
         ///Temperature
         sensorData->temperature.barometer_temp = -100.f;
@@ -887,6 +893,15 @@ SL_SensorsConfiguration* ZEDController::getSensorsConfiguration() {
         params->camera_ium_rotation.y = sensorConfig.camera_imu_transform.getOrientation().y;
         params->camera_ium_rotation.z = sensorConfig.camera_imu_transform.getOrientation().z;
         params->camera_ium_rotation.w = sensorConfig.camera_imu_transform.getOrientation().w;
+
+		params->ium_magnetometer_translation.x = sensorConfig.imu_magnetometer_transform.getTranslation().x;
+		params->ium_magnetometer_translation.y = sensorConfig.imu_magnetometer_transform.getTranslation().y;
+		params->ium_magnetometer_translation.z = sensorConfig.imu_magnetometer_transform.getTranslation().z;
+
+		params->ium_magnetometer_rotation.x = sensorConfig.imu_magnetometer_transform.getOrientation().x;
+		params->ium_magnetometer_rotation.y = sensorConfig.imu_magnetometer_transform.getOrientation().y;
+		params->ium_magnetometer_rotation.z = sensorConfig.imu_magnetometer_transform.getOrientation().z;
+		params->ium_magnetometer_rotation.w = sensorConfig.imu_magnetometer_transform.getOrientation().w;
     }
     return params;
 }
@@ -1443,6 +1458,34 @@ void ZEDController::disableObjectDetection() {
     }
 }
 
+sl::ERROR_CODE ZEDController::ingestCustomBoxObjectData(int nb_objects, SL_CustomBoxObjectData* objects_in)
+{
+	if (!isNull()) {
+		std::vector<sl::CustomBoxObjectData> objs;
+		for (int i = 0; i < nb_objects; i++) 
+		{			
+			SL_CustomBoxObjectData obj = objects_in[i];
+			sl::CustomBoxObjectData tmp;
+
+			tmp.unique_object_id = sl::String(obj.unique_object_id);
+			tmp.label = obj.label;
+			tmp.probability = obj.probability;
+			tmp.is_grounded = obj.is_grounded;
+			for (int l = 0; l < 4; l++) {
+				sl::uint2 value;
+				value.x = obj.bounding_box_2d[l].x;
+				value.y = obj.bounding_box_2d[l].y;
+
+				tmp.bounding_box_2d.push_back(value);
+			}
+			objs.push_back(tmp);
+		}
+		sl::ERROR_CODE err = zed.ingestCustomBoxObjects(objs);
+		return err;
+	}
+	return sl::ERROR_CODE::CAMERA_NOT_DETECTED;
+}
+
 sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRuntimeParameters* _objruntimeparams, SL_Objects* data) {
     memset(data, 0, sizeof (SL_Objects));
 
@@ -1486,16 +1529,15 @@ sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRunt
                     data->object_list[count].action_state = (SL_OBJECT_ACTION_STATE) p.action_state;
                     data->object_list[count].id = p.id;
                     data->object_list[count].confidence = p.confidence;
+					data->object_list[count].raw_label = p.raw_label;
+
+					memcpy(data->object_list[count].unique_object_id, p.unique_object_id, 37 * sizeof(char));
+
 
                     for (int k = 0; k < 6; k++)
                         data->object_list[count].position_covariance[k] = p.position_covariance[k];
 
-					data->object_list[count].mask = (int*)malloc(p.mask.getWidth() * p.mask.getWidth() * p.mask.getChannels());
-					memset(data->object_list[count].mask, 0, p.mask.getWidth() * p.mask.getWidth() * p.mask.getChannels());
-
-					if (p.mask.isInit()) {
-						memcpy(&data->object_list[count].mask[0], &p.mask.getPtr<sl::uchar1>()[0], p.mask.getWidth() * p.mask.getWidth() * p.mask.getChannels());
-					}
+					data->object_list[count].mask = (int*)(new sl::Mat(p.mask));
 
                     for (int l = 0; l < 4; l++) {
                         data->object_list[count].bounding_box_2d[l].x = (float) p.bounding_box_2d.at(l).x;
@@ -1522,7 +1564,6 @@ sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRunt
 
                     // if skeleton
                     if (data->detection_model == SL_DETECTION_MODEL_HUMAN_BODY_FAST || data->detection_model == SL_DETECTION_MODEL_HUMAN_BODY_ACCURATE || data->detection_model == SL_DETECTION_MODEL_HUMAN_BODY_MEDIUM) {
-
                         for (int i = 0; i < (int)p.keypoint.size(); i++) {
                             data->object_list[count].keypoint_2d[i].x = p.keypoint_2d.at(i).x;
                             data->object_list[count].keypoint_2d[i].y = p.keypoint_2d.at(i).y;
@@ -1530,7 +1571,6 @@ sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRunt
                             data->object_list[count].keypoint[i].x = p.keypoint.at(i).x;
                             data->object_list[count].keypoint[i].y = p.keypoint.at(i).y;
                             data->object_list[count].keypoint[i].z = p.keypoint.at(i).z;
-
                             data->object_list[count].keypoint_confidence[i] = p.keypoint_confidence.at(i);
                         }
 
@@ -1551,7 +1591,7 @@ sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRunt
 						data->object_list[count].global_root_orientation.z = p.global_root_orientation.z;
 						data->object_list[count].global_root_orientation.w = p.global_root_orientation.w;
 
-						for (int i = 0; i < p.local_orientation_per_joint.size(); i++) { // 18 or 32
+						for (int i = 0; i < p.local_orientation_per_joint.size(); i++) { // 18 or 34
 
 							data->object_list[count].local_orientation_per_joint[i].x = p.local_orientation_per_joint[i].x;
 							data->object_list[count].local_orientation_per_joint[i].y = p.local_orientation_per_joint[i].y;

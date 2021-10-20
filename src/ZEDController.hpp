@@ -154,6 +154,7 @@ public:
     sl::ERROR_CODE enableObjectDetection(SL_ObjectDetectionParameters* objparams);
     void pauseObjectDetection(bool status);
     void disableObjectDetection();
+	sl::ERROR_CODE ingestCustomBoxObjectData(int nb_objects, SL_CustomBoxObjectData* objects_in);
     sl::ERROR_CODE retrieveObjectDetectionData(SL_ObjectDetectionRuntimeParameters* objruntimeparams, SL_Objects* data);
     sl::ERROR_CODE updateObjectsBatch(int* nb_batches);
     sl::ERROR_CODE getObjectsBatchData(int index, struct SL_ObjectsBatch *objs);

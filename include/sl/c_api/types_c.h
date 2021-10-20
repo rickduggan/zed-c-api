@@ -149,14 +149,29 @@ struct SL_BarometerData {
 };
 
 /**
+* \brief Heading state enum
+*/
+enum SL_HEADING_STATE {
+	SL_HEADING_STATE_GOOD,/**< The heading is reliable and not affected by iron interferences. */
+	SL_HEADING_STATE_OK,/**< The heading is reliable, but affected by slight iron interferences. */
+	SL_HEADING_STATE_NOT_GOOD,/**< The heading is not reliable because affected by strong iron interferences. */
+	SL_HEADING_STATE_NOT_CALIBRATED,/**< The magnetometer has not been calibrated. */
+	SL_HEADING_STATE_MAG_NOT_AVAILABLE,/**< The magnetomer sensor is not available. */
+	SL_HEADING_STATE_LAST
+};
+
+/**
 * \brief Magnometer Data structure
 */
 struct SL_MagnetometerData {
-    bool is_available;
-    unsigned long long timestamp_ns;
-    struct SL_Vector3 magnetic_field;
-    struct SL_Vector3 magnetic_field_unc; //uncalibrated
-    struct SL_Vector3 magnetic_field_c; //calibrated
+	bool is_available;
+	unsigned long long  timestamp_ns;
+	struct SL_Vector3 magnetic_field_c; //calibrated
+	struct SL_Vector3 magnetic_field_unc; //uncalibrated
+	float magnetic_heading;
+	enum SL_HEADING_STATE magnetic_heading_state;
+	float magnetic_heading_accuracy;
+	float effective_rate;
 };
 
 /**
@@ -202,6 +217,7 @@ enum SL_ERROR_CODE {
 	SL_ERROR_CODE_NO_GPU_COMPATIBLE, /**< No GPU found or CUDA capability of the device is not supported.*/
 	SL_ERROR_CODE_NOT_ENOUGH_GPU_MEMORY, /**< Not enough GPU memory for this depth mode, try a different mode (such as PERFORMANCE), or increase the minimum depth value (see InitParameters::depth_minimum_distance).*/
 	SL_ERROR_CODE_CAMERA_NOT_DETECTED, /**< The ZED camera is not plugged or detected.*/
+	SL_ERROR_CODE_SENSORS_NOT_INITIALIZED, /**< The MCU that controls the sensors module has an invalid Serial Number. You can try to recover it launching the 'ZED Diagnostic' tool from the command line with the option '-r'.*/
 	SL_ERROR_CODE_SENSORS_NOT_AVAILABLE, /**< a ZED-M or ZED2/2i camera is detected but the sensors (imu,barometer...) cannot be opened. Only for ZED-M or ZED2/2i devices. Unplug/replug is required*/
 	SL_ERROR_CODE_INVALID_RESOLUTION, /**< In case of invalid resolution parameter, such as a upsize beyond the original image size in Camera::retrieveImage */
 	SL_ERROR_CODE_LOW_USB_BANDWIDTH, /**< This issue can occurs when you use multiple ZED or a USB 2.0 port (bandwidth issue).*/
@@ -229,6 +245,7 @@ enum SL_ERROR_CODE {
 	SL_ERROR_CODE_PLANE_NOT_FOUND, /**< Plane not found, either no plane is detected in the scene, at the location or corresponding to the floor, or the floor plane doesn't match the prior given*/
 	SL_ERROR_CODE_MODULE_NOT_COMPATIBLE_WITH_CAMERA, /**< The Object detection module is only compatible with the ZED 2*/
 	SL_ERROR_CODE_MOTION_SENSORS_REQUIRED, /**< The module needs the sensors to be enabled (see InitParameters::disable_sensors) */
+	SL_ERROR_CODE_MODULE_NOT_COMPATIBLE_WITH_CUDA_VERSION, /**< The module needs a newer version of CUDA */
 };
 
 /**
@@ -584,7 +601,9 @@ enum SL_OBJECT_SUBCLASS
 	SL_OBJECT_SUBCLASS_BANANA,      /**< FRUIT/VEGETABLE */
 	SL_OBJECT_SUBCLASS_APPLE,       /**< FRUIT/VEGETABLE */
 	SL_OBJECT_SUBCLASS_ORANGE,      /**< FRUIT/VEGETABLE */
-	SL_OBJECT_SUBCLASS_CARROT      /**< FRUIT/VEGETABLE */
+	SL_OBJECT_SUBCLASS_CARROT,      /**< FRUIT/VEGETABLE */
+	SL_OBJECT_SUBCLASS_PERSON_HEAD, /**< PERSON */
+	SL_OBJEC_SUBCLASS_SPORTSBALL  /**< SPORTSBALL >*/
 
 };
 
@@ -607,7 +626,8 @@ enum SL_DETECTION_MODEL {
 	SL_DETECTION_MODEL_HUMAN_BODY_ACCURATE, /**<  Keypoints based, specific to human skeleton, state of the art accuracy, requires powerful GPU */
 	SL_DETECTION_MODEL_MULTI_CLASS_BOX_MEDIUM, /**< Any objects, bounding box based, compromise between accuracy and speed */
 	SL_DETECTION_MODEL_HUMAN_BODY_MEDIUM, /**<  Keypoints based, specific to human skeleton, compromise between accuracy and speed */
-	SL_DETECTION_MODEL_PERSON_HEAD_BOX
+	SL_DETECTION_MODEL_PERSON_HEAD_BOX, /**<  Bounding Box detector specialized in person heads, particulary well suited for crowded environement, the person localization is also improved */
+	SL_DETECTION_MODEL_CUSTOM_BOX_OBJECTS /**< For external inference, using your own custom model and/or frameworks. This mode disable the internal inference engine, the 2D bounding box detection must be provided */
 };
 
 /**
@@ -622,11 +642,11 @@ enum SL_BODY_FORMAT
 	SL_BODY_FORMAT_POSE_18,
 
 	/**
-	 * \brief 32 keypoint model.
+	 * \brief 34 keypoint model.
 	 * \note local keypoint angle and position are available
 	 * \warning The SDK will automatically enable fitting.
 	 */
-	SL_BODY_FORMAT_POSE_32,
+	SL_BODY_FORMAT_POSE_34,
 };
 
 /**
@@ -656,43 +676,45 @@ enum SL_BODY_PARTS_POSE_18
 };
 
 /**
- * \brief semantic of human body parts and order of \ref ObjectData::keypoint for BODY_FORMAT::POSE_32.
+ * \brief semantic of human body parts and order of \ref ObjectData::keypoint for BODY_FORMAT::POSE_34.
  */
-enum SL_BODY_PARTS_POSE_32
+enum SL_BODY_PARTS_POSE_34
 {
-	SL_BODY_PARTS_POSE_32_PELVIS,
-	SL_BODY_PARTS_POSE_32_NAVAL_SPINE,
-	SL_BODY_PARTS_POSE_32_CHEST_SPINE,
-	SL_BODY_PARTS_POSE_32_NECK,
-	SL_BODY_PARTS_POSE_32_LEFT_CLAVICLE,
-	SL_BODY_PARTS_POSE_32_LEFT_SHOULDER,
-	SL_BODY_PARTS_POSE_32_LEFT_ELBOW,
-	SL_BODY_PARTS_POSE_32_LEFT_WRIST,
-	SL_BODY_PARTS_POSE_32_LEFT_HAND,
-	SL_BODY_PARTS_POSE_32_LEFT_HANDTIP,
-	SL_BODY_PARTS_POSE_32_LEFT_THUMB,
-	SL_BODY_PARTS_POSE_32_RIGHT_CLAVICLE,
-	SL_BODY_PARTS_POSE_32_RIGHT_SHOULDER,
-	SL_BODY_PARTS_POSE_32_RIGHT_ELBO,
-	SL_BODY_PARTS_POSE_32_RIGHT_WRIST,
-	SL_BODY_PARTS_POSE_32_RIGHT_HAND,
-	SL_BODY_PARTS_POSE_32_RIGHT_HANDTIP,
-	SL_BODY_PARTS_POSE_32_RIGHT_THUMB,
-	SL_BODY_PARTS_POSE_32_LEFT_HIP,
-	SL_BODY_PARTS_POSE_32_LEFT_KNEE,
-	SL_BODY_PARTS_POSE_32_LEFT_ANKLE,
-	SL_BODY_PARTS_POSE_32_LEFT_FOOT,
-	SL_BODY_PARTS_POSE_32_RIGHT_HIP,
-	SL_BODY_PARTS_POSE_32_RIGHT_KNEE,
-	SL_BODY_PARTS_POSE_32_RIGHT_ANKLE,
-	SL_BODY_PARTS_POSE_32_RIGHT_FOOT,
-	SL_BODY_PARTS_POSE_32_HEAD,
-	SL_BODY_PARTS_POSE_32_NOSE,
-	SL_BODY_PARTS_POSE_32_LEFT_EYE,
-	SL_BODY_PARTS_POSE_32_LEFT_EAR,
-	SL_BODY_PARTS_POSE_32_RIGHT_EYE,
-	SL_BODY_PARTS_POSE_32_RIGHT_EAR,
-	SL_BODY_PARTS_POSE_32_LAST
+	SL_BODY_PARTS_POSE_34_PELVIS,
+	SL_BODY_PARTS_POSE_34_NAVAL_SPINE,
+	SL_BODY_PARTS_POSE_34_CHEST_SPINE,
+	SL_BODY_PARTS_POSE_34_NECK,
+	SL_BODY_PARTS_POSE_34_LEFT_CLAVICLE,
+	SL_BODY_PARTS_POSE_34_LEFT_SHOULDER,
+	SL_BODY_PARTS_POSE_34_LEFT_ELBOW,
+	SL_BODY_PARTS_POSE_34_LEFT_WRIST,
+	SL_BODY_PARTS_POSE_34_LEFT_HAND,
+	SL_BODY_PARTS_POSE_34_LEFT_HANDTIP,
+	SL_BODY_PARTS_POSE_34_LEFT_THUMB,
+	SL_BODY_PARTS_POSE_34_RIGHT_CLAVICLE,
+	SL_BODY_PARTS_POSE_34_RIGHT_SHOULDER,
+	SL_BODY_PARTS_POSE_34_RIGHT_ELBO,
+	SL_BODY_PARTS_POSE_34_RIGHT_WRIST,
+	SL_BODY_PARTS_POSE_34_RIGHT_HAND,
+	SL_BODY_PARTS_POSE_34_RIGHT_HANDTIP,
+	SL_BODY_PARTS_POSE_34_RIGHT_THUMB,
+	SL_BODY_PARTS_POSE_34_LEFT_HIP,
+	SL_BODY_PARTS_POSE_34_LEFT_KNEE,
+	SL_BODY_PARTS_POSE_34_LEFT_ANKLE,
+	SL_BODY_PARTS_POSE_34_LEFT_FOOT,
+	SL_BODY_PARTS_POSE_34_RIGHT_HIP,
+	SL_BODY_PARTS_POSE_34_RIGHT_KNEE,
+	SL_BODY_PARTS_POSE_34_RIGHT_ANKLE,
+	SL_BODY_PARTS_POSE_34_RIGHT_FOOT,
+	SL_BODY_PARTS_POSE_34_HEAD,
+	SL_BODY_PARTS_POSE_34_NOSE,
+	SL_BODY_PARTS_POSE_34_LEFT_EYE,
+	SL_BODY_PARTS_POSE_34_LEFT_EAR,
+	SL_BODY_PARTS_POSE_34_RIGHT_EYE,
+	SL_BODY_PARTS_POSE_34_RIGHT_EAR,
+	SL_BODY_PARTS_POSE_34_LEFT_HEEL,
+	SL_BODY_PARTS_POSE_34_RIGHT_HEEL,
+	SL_BODY_PARTS_POSE_34_LAST
 };
 
 
@@ -834,7 +856,7 @@ struct SL_InitParameters
 	\n default : false
 	\note The verbose messages can also be exported into a log file. See \ref sdk_verbose_log_file for more.
 	 */
-	bool sdk_verbose;
+	int  sdk_verbose;
 	/**
 	Force the motion sensors opening of the ZED 2 / ZED-M to open the camera.
 	\n default : false.
@@ -852,6 +874,14 @@ struct SL_InitParameters
 	\n This only works for firmware version starting from 1523 and up.
 	 */
 	bool enable_image_enhancement;
+
+	/**
+	Define a timeout in seconds after which an error is reported if the \ref open() command fails.
+	Set to '-1' to try to open the camera endlessly without returning error in case of failure.
+	Set to '0' to return error in case of failure at the first attempt.
+	\n This parameter only impacts the LIVE mode.
+	 */
+	float open_timeout_sec;
 };
 
 /**
@@ -981,6 +1011,14 @@ struct SL_SensorsConfiguration
 	IMU to Left camera translation (SL_float3).
 	*/
 	struct SL_Vector3 camera_imu_translation;
+	/**
+	Magnetometer to IMU rotation. That contains rotation between IMU frame and magnetometer frame.
+	*/
+	struct SL_Vector4 ium_magnetometer_rotation;
+	/**
+	Magnetometer to IMU translation. That contains translation between IMU frame and magnetometer frame.
+	*/
+	struct SL_Vector3 ium_magnetometer_translation;
 	/**
 	Configuration of the accelerometer device
 	*/
@@ -1196,6 +1234,7 @@ enum SL_OBJECT_CLASS
 	SL_OBJECT_CLASS_ANIMAL,          /**< For animal detection (cow, sheep, horse, dog, cat, bird, etc) */
 	SL_OBJECT_CLASS_ELECTRONICS,     /**< For electronic device detection (cellphone, laptop, etc) */
 	SL_OBJECT_CLASS_FRUIT_VEGETABLE, /**<  For fruit and vegetable detection (banana, apple, orange, carrot, etc) */
+	SL_OBJECT_CLASS_SPORT,			 /**<  For sport related objects (sports ball etc) */
 	SL_OBJECT_CLASS_LAST
 };
 
@@ -1238,6 +1277,15 @@ struct SL_ObjectData
 		\note Only available if \ref ObjectDetectionParameters::enable_tracking is activated else set to -1.
 		 */
 	int id;
+	/**
+	\brief Unique ID to help identify and track AI detections. Can be either generated externally, or using \ref sl_generate_unique_id() or left empty
+	*/
+	unsigned char unique_object_id[37];
+
+	/**
+	\brief Object label, forwarded from \ref CustomBoxObjects when using \ref SL_DETECTION_MODEL_CUSTOM_BOX_OBJECTS
+	*/
+	int raw_label;
 	/**
 	\brief Object category. Identify the object type (sl::OBJECT_CLASS)
 	 */
@@ -1309,7 +1357,7 @@ struct SL_ObjectData
 	  \note Not available with DETECTION_MODEL::MULTI_CLASS_BOX.
 	  \warning in some cases, eg. body partially out of the image, some keypoint can not be detected, they will have negatives coordinates.
 	 */
-	struct SL_Vector2 keypoint_2d[32];
+	struct SL_Vector2 keypoint_2d[34];
 	/**
 	 * \brief A set of useful points representing the human body, expressed in 3D.
 	 * We use a classic 18 points representation, the points semantic and order is given by BODY_PARTS.
@@ -1317,7 +1365,7 @@ struct SL_ObjectData
 	  \note Not available with DETECTION_MODEL::MULTI_CLASS_BOX.
 	  \warning in some cases, eg. body partially out of the image or missing depth data, some keypoint can not be detected, they will have non finite values.
 	 */
-	struct SL_Vector3 keypoint[32];
+	struct SL_Vector3 keypoint[34];
 	/**
 	\brief the covariance matrix of the 3d position, represented by its upper triangular matrix value
 	 * \code
@@ -1333,23 +1381,61 @@ struct SL_ObjectData
 	  \note Not available with DETECTION_MODEL::MULTI_CLASS_BOX.
 	  \warning in some cases, eg. body partially out of the image or missing depth data, some keypoint can not be detected, they will have non finite values.
 	 */
-	float keypoint_confidence[32];
+	float keypoint_confidence[34];
 	/**
 	\brief Per keypoint local position (the position of the child keypoint with respect to its parent expressed in its parent coordinate frame)
 	\note it is expressed in sl::REFERENCE_CAMERA or sl::REFERENCE_WORLD
 	Not available with DETECTION_MODEL::MULTI_CLASS_BOX.
 	*/
-	struct SL_Vector3 local_position_per_joint[32];
+	struct SL_Vector3 local_position_per_joint[34];
 	/**
 		\brief Per keypoint local orientation
 		\note the orientation is represented by a quaternion which is stored in sl::float4 (sl::float4 q = sl::float4(qx,qy,qz,qw);)
 		Not available with DETECTION_MODEL::MULTI_CLASS_BOX.
 	*/
-	struct SL_Quaternion local_orientation_per_joint[32];
+	struct SL_Quaternion local_orientation_per_joint[34];
 	/**
 		\brief global root orientation of the skeleton. The orientation is also represented by a quaternion with the same format as \ref local_orientation_per_joint
 	*/
 	struct SL_Quaternion global_root_orientation;
+};
+
+/**
+\brief Container to store the externally detected objects. The objects can be ingested
+ * using \ref sl_ingest_custom_box_objects() functions to extract 3D information and tracking over time
+ */
+
+struct SL_CustomBoxObjectData {
+	/**
+	\brief Unique ID to help identify and track AI detections. Can be either generated externally, or using \ref generate_unique_id() or left empty
+	*/
+	char unique_object_id[37];
+	/**
+	 * \brief 2D bounding box represented as four 2D points starting at the top left corner and rotation clockwise.
+	 * Expressed in pixels on the original image resolution, [0,0] is the top left corner.
+	 * \code
+		A ------ B
+		| Object |
+		D ------ C
+	\endcode
+	*/
+	struct SL_Vector2 bounding_box_2d[4];
+
+	/**
+	\brief Object label, this information is passed-through and can be used to improve object tracking
+	*/
+	int label;
+
+	/**
+	\brief Detection confidence. Should be [0-1]. It can be used to improve the object tracking
+	*/
+	float probability;
+	/**
+	\brief Provide hypothesis about the object movements(degrees of freedom) to improve the object tracking
+		* true: means 2 DoF projected alongside the floor plane, the default for object standing on the ground such as person, vehicle, etc
+		* false : 6 DoF full 3D movements are allowed
+    */
+	bool is_grounded;
 };
 
 /**
