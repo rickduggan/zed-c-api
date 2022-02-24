@@ -1200,7 +1200,7 @@ extern "C" {
 
     INTERFACE_API int sl_mat_set_to_uchar2(int* ptr, SL_Uchar2 value, enum SL_MEM mem) {
         sl::uchar2 f = sl::uchar2(value.x, value.y);
-        return (int) (MAT->setTo<sl::uchar2>(f, (sl::MEM)mem));
+        return (int) (MAT->setTo<sl::uchar2>(f, (sl::MEM)(mem + 1)));
 
     }
 

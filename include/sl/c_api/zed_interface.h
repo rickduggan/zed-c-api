@@ -67,8 +67,8 @@ extern "C" {
     \param ip : ip of the camera to open (for Stream input).
     \param stream_port : port of the camera to open (for Stream input).
     \param output_file : sdk verbose log file. Redirect the SDK verbose message to file.
-    \param opt_settings_path : optionnal settings path. Equivalent to  \ref InitParameters::optional_settings_path.
-    \param opencv_calib_path : optionnal openCV calibration file. Equivalent to  \ref InitParameters::optional_opencv_calibration_file.
+    \param opt_settings_path : optional settings path. Equivalent to  \ref InitParameters::optional_settings_path.
+    \param opencv_calib_path : optional openCV calibration file. Equivalent to  \ref InitParameters::optional_opencv_calibration_file.
     \return An error code giving information about the internal process. If SUCCESS (0) is returned, the camera is ready to use. Every other code indicates an error and the program should be stopped.
     */
     INTERFACE_API int sl_open_camera(int camera_id, struct SL_InitParameters *init_parameters, const char* path_svo, const char* ip, int stream_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path);
@@ -95,7 +95,7 @@ extern "C" {
 
     /**
     \brief Destroys the camera and disable the textures.
-    \param camera_idid of the camera instance.
+    \param camera_id : id of the camera instance.
      */
     INTERFACE_API void sl_close_camera(int camera_id);
     /**
