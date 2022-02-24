@@ -198,23 +198,6 @@ extern "C" {
     INTERFACE_API int sl_get_area_export_state(int camera_id);
 
     /**
-    \brief Estimates the initial position of the camera using SL_findFloorPlane().
-    \param camera_id : id of the camera instance.
-    \param world_rotation : estimated world rotation of the camera.
-    \param world_position : estimated world position of the camera.
-    \param vestruct C_count : number of plane detections done before computing mean values.
-    \return \ref SL_ERROR_CODE::SUCCESS if everything went fine, ERROR_CODE::FAILURE otherwise.
-     */
-    //INTERFACE_API int estimate_initial_position(int camera_id, struct SL_Quaternion *world_rotation, struct SL_Vector3 *world_position, int vec_count, int max_time_out);
-
-    /**
-    \brief Gets the depth max value (see \ref SL_InitParameters::depth_maximum_distance).
-    \param camera_id : id of the camera instance.
-    \return The max depth value.
-     */
-    INTERFACE_API float sl_get_depth_max_range_value(int camera_id);
-
-    /**
     \brief  Sets the playback cursor to the desired frame number in the SVO file.
     This function allows you to move around within a played-back SVO file. After calling, the next call to grab() will read the provided frame number.
 
@@ -380,11 +363,27 @@ extern "C" {
     INTERFACE_API int sl_get_roi_for_aec_agc(int id, enum SL_SIDE side, struct SL_Rect* roi);
 
     /**
-    \brief Gets the closest measurable distance by the camera, according to the camera type and depth map parameters. Equivalent of SL_InitParameters::depth_minimum_distance).
+    \brief Gets the depth min value from InitParameters (see \ref SL_InitParameters::depth_minimum_distance).
     \param camera_id : id of the camera instance.
-    \return The minimum depth distance.
+    \return The min depth value available.
      */
     INTERFACE_API float sl_get_depth_min_range_value(int camera_id);
+
+    /**
+    \brief Gets the depth max value from InitParameters (see \ref SL_InitParameters::depth_maximum_distance).
+    \param camera_id : id of the camera instance.
+    \return The max depth value available.
+     */
+    INTERFACE_API float sl_get_depth_max_range_value(int camera_id);
+
+    /**
+    \brief Gets the current range of perceived depth.
+    \param camera_id : id of the camera instance.
+    \param min : \b [out] Minimum depth detected (in selected sl::UNIT)
+    \param max : \b [out] Maximum depth detected (in selected sl::UNIT)
+    \return SL_ERROR_CODE::SUCCESS if values have been extracted. Other ERROR_CODE otherwise.
+     */
+    INTERFACE_API int sl_get_current_min_max_depth(int camera_id,float& min, float& max);
 
     /**
     \brief Gets the number of zed connected.
@@ -850,6 +849,22 @@ extern "C" {
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////// Object Detection //////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	 /**
+		\brief Check if a corresponding optimized engine is found for the requested Model based on your rig configuration.
+		\param model : AI model to check.
+		\param gpu_id : ID of the gpu.
+		\return The status of the given model for the specified GPU.
+	*/
+	INTERFACE_API SL_AI_Model_status* sl_check_AI_model_status(SL_AI_MODELS model, int gpu_id);
+
+	/**
+	\brief Optimize the requested model, possible download if the model is not present on the host.
+	\param model : AI model to optimize.
+	\param gpu_id : ID of the gpu to optimize on.
+	\return SUCCESS if the model is well optimized.
+	*/
+	INTERFACE_API SL_ERROR_CODE sl_optimize_AI_model(SL_AI_MODELS model, int gpu_id);
 
     /**
     \brief Initializes and starts the Deep Learning detection module.

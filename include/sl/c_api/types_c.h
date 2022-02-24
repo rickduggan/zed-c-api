@@ -527,6 +527,7 @@ enum SL_DEPTH_MODE {
 	SL_DEPTH_MODE_PERFORMANCE, /** Computation mode optimized for speed.*/
 	SL_DEPTH_MODE_QUALITY, /** Computation mode designed for challenging areas with untextured surfaces.*/
 	SL_DEPTH_MODE_ULTRA, /** Computation mode favorising edges and sharpness. Requires more GPU memory and computation power.*/
+	SL_DEPTH_MODE_NEURAL /**< End to End Neural disparity estimation, requires AI module */
 };
 
 /**
@@ -556,7 +557,9 @@ enum SL_COPY_TYPE
 enum SL_SVO_COMPRESSION_MODE {
 	SL_SVO_COMPRESSION_MODE_LOSSLESS, /**< PNG/ZSTD (lossless) CPU based compression : avg size = 42% (of RAW).*/
 	SL_SVO_COMPRESSION_MODE_H264, /**< H264(AVCHD) GPU based compression : avg size = 1% (of RAW). Requires a NVIDIA GPU*/
-	SL_SVO_COMPRESSION_MODE_H265 /**< H265(HEVC) GPU based compression: avg size = 1% (of RAW). Requires a NVIDIA GPU, Pascal architecture or newer*/
+	SL_SVO_COMPRESSION_MODE_H265, /**< H265(HEVC) GPU based compression: avg size = 1% (of RAW). Requires a NVIDIA GPU, Pascal architecture or newer*/
+	SL_SVO_COMPRESSION_MODE_H264_LOSSLESS, /**< H264 Lossless GPU/Hardware based compression: avg size = 25% (of RAW). Provides a SSIM/PSNR result (vs RAW) >= 99.9%. Requires a NVIDIA GPU */
+	SL_SVO_COMPRESSION_MODE_H265_LOSSLESS, /**< H265 Lossless GPU/Hardware based compression: avg size = 25% (of RAW). Provides a SSIM/PSNR result (vs RAW) >= 99.9%. Requires a NVIDIA GPU */
 };
 
 /**
@@ -629,6 +632,41 @@ enum SL_DETECTION_MODEL {
 	SL_DETECTION_MODEL_PERSON_HEAD_BOX, /**<  Bounding Box detector specialized in person heads, particulary well suited for crowded environement, the person localization is also improved */
 	SL_DETECTION_MODEL_CUSTOM_BOX_OBJECTS /**< For external inference, using your own custom model and/or frameworks. This mode disable the internal inference engine, the 2D bounding box detection must be provided */
 };
+
+/**
+   \brief Lists available  AI moles.
+   */
+enum SL_AI_MODELS {
+	SL_AI_MODELS_MULTI_CLASS_DETECTION, // related to sl::DETECTION_MODEL::MULTI_CLASS_BOX
+	SL_AI_MODELS_MULTI_CLASS_MEDIUM_DETECTION, // related to sl::DETECTION_MODEL::MULTI_CLASS_BOX_MEDIUM
+	SL_AI_MODELS_MULTI_CLASS_ACCURATE_DETECTION, // related to sl::DETECTION_MODEL::MULTI_CLASS_BOX_ACCURATE
+	SL_AI_MODELS_HUMAN_BODY_FAST_DETECTION, // related to sl::DETECTION_MODEL::HUMAN_BODY_FAST
+	SL_AI_MODELS_HUMAN_BODY_MEDIUM_DETECTION, // related to sl::DETECTION_MODEL::HUMAN_BODY_MEDIUM
+	SL_AI_MODELS_HUMAN_BODY_ACCURATE_DETECTION, // related to sl::DETECTION_MODEL::HUMAN_BODY_ACCURATE
+	SL_AI_MODELS_PERSON_HEAD_DETECTION, // related to sl::DETECTION_MODEL::PERSON_HEAD_BOX
+	SL_AI_MODELS_REID_ASSOCIATION, // related to sl::BatchParameters::enable
+	SL_AI_MODELS_NEURAL_DEPTH, // related to sl::DEPTH_MODE::NEURAL
+	SL_AI_MODELS_LAST
+};
+
+/**
+\brief Lists of supported bounding box preprocessing
+ */
+enum SL_OBJECT_FILTERING_MODE {
+	/**
+	 * \brief SDK will not apply any preprocessing to the detected objects
+	 */
+	SL_OBJECT_FILTERING_MODE_NONE,
+    /**
+     * \brief SDK will remove objects that are in the same 3D position as an already tracked object (independant of class ID)
+     */
+    SL_OBJECT_FILTERING_MODE_NMS_3D,
+    /**
+     * \brief SDK will remove objects that are in the same 3D position as an already tracked object of the same class ID
+     */
+    SL_OBJECT_FILTERING_MODE_NMS_3D_PER_CLASS
+};
+
 
 /**
 \brief Lists of supported skeleton body model
@@ -919,6 +957,13 @@ struct SL_RuntimeParameters
 	\n Decreasing this value will remove depth data from image areas which are uniform.
 	 */
 	int texture_confidence_threshold;
+
+    /**
+     Defines if the saturated area (Luminance>=255) must be removed from depth map estimation
+     \n True by default
+     \n It is recommended to keep this parameter at true because saturated area can create false detection.
+     */
+    bool remove_saturated_areas = true;
 };
 
 /**
@@ -1179,6 +1224,14 @@ struct SL_BatchParameters
 };
 
 /**
+\brief contains AI model status.
+*/
+struct SL_AI_Model_status {
+	bool downloaded; // the model file is currently present on the host
+	bool optimized; // an engine file with the expected architecure is found.
+};
+
+/**
 Sets the object detection parameters.
 */
 struct SL_ObjectDetectionParameters
@@ -1221,6 +1274,10 @@ struct SL_ObjectDetectionParameters
 	 * \n BatchParameters::enable need to be true to use this feature (by default disabled)
 	 */
 	struct SL_BatchParameters batch_parameters;
+	/**
+	\brief Defines the filtering mode that should be applied to raw detections.
+	*/
+	SL_OBJECT_FILTERING_MODE filtering_mode;
 };
 
 /**

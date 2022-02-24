@@ -248,7 +248,7 @@ SL_RuntimeParameters* ZEDController::getRuntimeParameters() {
     c_runtimeParams->enable_depth = runtimeParams.enable_depth;
     c_runtimeParams->confidence_threshold = runtimeParams.confidence_threshold;
     c_runtimeParams->texture_confidence_threshold = runtimeParams.texture_confidence_threshold;
-
+    c_runtimeParams->remove_saturated_areas = runtimeParams.remove_saturated_areas;
     return c_runtimeParams;
 }
 
@@ -548,6 +548,7 @@ sl::ERROR_CODE ZEDController::grab(SL_RuntimeParameters *runtimeParameters) {
         runtimeParams.confidence_threshold = runtimeParameters->confidence_threshold;
         runtimeParams.measure3D_reference_frame = (sl::REFERENCE_FRAME)runtimeParameters->reference_frame;
         runtimeParams.texture_confidence_threshold = runtimeParameters->texture_confidence_threshold;
+        runtimeParams.remove_saturated_areas = runtimeParameters->remove_saturated_areas;
         sdk_mutex.lock();
         err = zed.grab(runtimeParams);
         sdk_mutex.unlock();
@@ -1418,6 +1419,7 @@ sl::ERROR_CODE ZEDController::enableObjectDetection(SL_ObjectDetectionParameters
         params.enable_body_fitting = obj_params->enable_body_fitting;
 		params.body_format = (sl::BODY_FORMAT)obj_params->body_format;
         params.detection_model = (sl::DETECTION_MODEL)obj_params->model;
+		params.filtering_mode = (sl::OBJECT_FILTERING_MODE)obj_params->filtering_mode;
         if (obj_params->max_range > 0)
             params.max_range = obj_params->max_range;
 
