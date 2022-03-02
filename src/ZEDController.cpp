@@ -425,12 +425,18 @@ sl::POSITIONAL_TRACKING_STATE ZEDController::getPosition(SL_PoseData *poseData, 
     if (!isNull()) {
         sl::Pose pose;
         sl::POSITIONAL_TRACKING_STATE state = zed.getPosition(pose, (sl::REFERENCE_FRAME) reference_frame);
+
+		memset(poseData, 0, sizeof(SL_PoseData));
         poseData->pose_confidence = pose.pose_confidence;
         sl::Orientation tempOrientation = pose.pose_data.getOrientation();
         poseData->rotation.x = tempOrientation.x;
         poseData->rotation.y = tempOrientation.y;
         poseData->rotation.z = tempOrientation.z;
         poseData->rotation.w = tempOrientation.w;
+
+		memcpy(&poseData->pose_covariance[0], &pose.pose_covariance[0], sizeof(float) * 36);
+		memcpy(&poseData->twist[0], &pose.twist[0], sizeof(float) * 6);
+		memcpy(&poseData->twist_covariance[0], &pose.twist_covariance[0], sizeof(float) * 36);
 
         poseData->translation.x = pose.pose_data.getTranslation().x;
         poseData->translation.y = pose.pose_data.getTranslation().y;

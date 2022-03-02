@@ -100,6 +100,9 @@ struct SL_PoseData {
     struct SL_Quaternion rotation;
     struct SL_Vector3 translation;
     int pose_confidence;
+	float pose_covariance[36];
+	float twist[6];
+	float twist_covariance[36];
 };
 
 enum UNITY_PLAN_TYPE {
@@ -963,7 +966,7 @@ struct SL_RuntimeParameters
      \n True by default
      \n It is recommended to keep this parameter at true because saturated area can create false detection.
      */
-    bool remove_saturated_areas = true;
+    bool remove_saturated_areas;
 };
 
 /**
@@ -1175,27 +1178,6 @@ struct SL_SpatialMappingParameters {
 };
 
 
-/**
-Contains positional tracking data which gives the position and orientation of the ZED in 3D space.
-*/
-struct SL_Pose
-{
-	struct SL_Vector3 position;
-	struct SL_Vector4 rotation;
-};
-
-/**
-Contains all tracking data
-*/
-struct SL_TrackingData
-{
-	struct SL_Pose zed_path_transform;
-	struct SL_Pose zed_world_transform;
-	struct SL_Pose offset_zed_world_transform;
-	int tracking_state;
-};
-
-
 #if WITH_OBJECT_DETECTION
 #define MAX_NUMBER_OBJECT 75
 #define MAX_TRAJECTORY_SIZE 200
@@ -1277,7 +1259,7 @@ struct SL_ObjectDetectionParameters
 	/**
 	\brief Defines the filtering mode that should be applied to raw detections.
 	*/
-	SL_OBJECT_FILTERING_MODE filtering_mode;
+	enum SL_OBJECT_FILTERING_MODE filtering_mode;
 };
 
 /**

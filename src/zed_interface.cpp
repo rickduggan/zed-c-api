@@ -614,10 +614,10 @@ extern "C" {
             return (int) sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
-    INTERFACE_API int sl_get_current_min_max_depth(int c_id,float& min, float& max)
+    INTERFACE_API int sl_get_current_min_max_depth(int c_id,float* min, float* max)
     {
         if (!ZEDController::get(c_id)->isNull())
-            return (int) ZEDController::get(c_id)->zed.getCurrentMinMaxDepth(min,max);
+            return (int) ZEDController::get(c_id)->zed.getCurrentMinMaxDepth(*min,*max);
         else
             return (int) sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
@@ -956,7 +956,7 @@ extern "C" {
 #if WITH_OBJECT_DETECTION
 
 
-	INTERFACE_API SL_AI_Model_status* sl_check_AI_model_status(SL_AI_MODELS model, int gpu_id) {
+	INTERFACE_API struct SL_AI_Model_status* sl_check_AI_model_status(enum SL_AI_MODELS model, int gpu_id) {
 		SL_AI_Model_status* status = new SL_AI_Model_status();
 		memset(status, 0, sizeof(SL_AI_Model_status));
 		sl::AI_Model_status zed_status = sl::Camera::checkAIModelStatus((sl::AI_MODELS)model, gpu_id);
@@ -966,8 +966,8 @@ extern "C" {
 		return status;
 	}
 
-	INTERFACE_API SL_ERROR_CODE sl_optimize_AI_model(SL_AI_MODELS model, int gpu_id) {
-		return (SL_ERROR_CODE)sl::Camera::optimizeAIModel((sl::AI_MODELS)model, gpu_id);
+	INTERFACE_API int sl_optimize_AI_model(enum SL_AI_MODELS model, int gpu_id) {
+		return (int)sl::Camera::optimizeAIModel((sl::AI_MODELS)model, gpu_id);
 	}
 
     INTERFACE_API int sl_enable_objects_detection(int c_id, SL_ObjectDetectionParameters* params) {
@@ -1200,7 +1200,7 @@ extern "C" {
 
     INTERFACE_API int sl_mat_set_to_uchar2(int* ptr, SL_Uchar2 value, enum SL_MEM mem) {
         sl::uchar2 f = sl::uchar2(value.x, value.y);
-        return (int) (MAT->setTo<sl::uchar2>(f, (sl::MEM)(mem + 1)));
+        return (int) (MAT->setTo<sl::uchar2>(f, (sl::MEM)mem));
 
     }
 

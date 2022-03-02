@@ -67,8 +67,8 @@ extern "C" {
     \param ip : ip of the camera to open (for Stream input).
     \param stream_port : port of the camera to open (for Stream input).
     \param output_file : sdk verbose log file. Redirect the SDK verbose message to file.
-    \param opt_settings_path : optional settings path. Equivalent to  \ref InitParameters::optional_settings_path.
-    \param opencv_calib_path : optional openCV calibration file. Equivalent to  \ref InitParameters::optional_opencv_calibration_file.
+    \param opt_settings_path : optionnal settings path. Equivalent to  \ref InitParameters::optional_settings_path.
+    \param opencv_calib_path : optionnal openCV calibration file. Equivalent to  \ref InitParameters::optional_opencv_calibration_file.
     \return An error code giving information about the internal process. If SUCCESS (0) is returned, the camera is ready to use. Every other code indicates an error and the program should be stopped.
     */
     INTERFACE_API int sl_open_camera(int camera_id, struct SL_InitParameters *init_parameters, const char* path_svo, const char* ip, int stream_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path);
@@ -95,7 +95,7 @@ extern "C" {
 
     /**
     \brief Destroys the camera and disable the textures.
-    \param camera_id : id of the camera instance.
+    \param camera_idid of the camera instance.
      */
     INTERFACE_API void sl_close_camera(int camera_id);
     /**
@@ -383,7 +383,7 @@ extern "C" {
     \param max : \b [out] Maximum depth detected (in selected sl::UNIT)
     \return SL_ERROR_CODE::SUCCESS if values have been extracted. Other ERROR_CODE otherwise.
      */
-    INTERFACE_API int sl_get_current_min_max_depth(int camera_id,float& min, float& max);
+    INTERFACE_API int sl_get_current_min_max_depth(int camera_id,float* min, float* max);
 
     /**
     \brief Gets the number of zed connected.
@@ -856,7 +856,7 @@ extern "C" {
 		\param gpu_id : ID of the gpu.
 		\return The status of the given model for the specified GPU.
 	*/
-	INTERFACE_API SL_AI_Model_status* sl_check_AI_model_status(SL_AI_MODELS model, int gpu_id);
+	INTERFACE_API struct SL_AI_Model_status* sl_check_AI_model_status(enum SL_AI_MODELS model, int gpu_id);
 
 	/**
 	\brief Optimize the requested model, possible download if the model is not present on the host.
@@ -864,7 +864,7 @@ extern "C" {
 	\param gpu_id : ID of the gpu to optimize on.
 	\return SUCCESS if the model is well optimized.
 	*/
-	INTERFACE_API SL_ERROR_CODE sl_optimize_AI_model(SL_AI_MODELS model, int gpu_id);
+	INTERFACE_API int sl_optimize_AI_model(enum SL_AI_MODELS model, int gpu_id);
 
     /**
     \brief Initializes and starts the Deep Learning detection module.
