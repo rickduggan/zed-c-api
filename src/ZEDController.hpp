@@ -61,9 +61,10 @@ public:
         return height;
     }
 
-    sl::CameraInformation* getCameraInformation();
+    sl::CameraInformation* getSLCameraInformation();
     SL_CalibrationParameters* getCalibrationParameters(bool raw);
     SL_SensorsConfiguration* getSensorsConfiguration();
+	SL_CameraInformation* getCameraInformation(int width, int height);
     sl::MODEL getCameraModel();
     SL_InitParameters* getInitParameters();
     SL_RuntimeParameters* getRuntimeParameters();
@@ -74,6 +75,8 @@ public:
     /************Recording******************/
     sl::ERROR_CODE enableRecording(const char* path, sl::SVO_COMPRESSION_MODE compressionMode, unsigned int bitrate, int targetFPS, bool transcode);
     void disableRecording();
+	SL_RecordingStatus* getRecordingStatus();
+	SL_RecordingParameters* getRecordingParameters();
 
 
     /************Tracking*******************/
@@ -105,6 +108,7 @@ public:
     sl::ERROR_CODE retrieveFusedPointCloud(float* vertices);
 
     void disableSpatialMapping();
+	SL_SpatialMappingParameters* getSpatialMappingParameters();
     bool saveMesh(const char* filename, sl::MESH_FILE_FORMAT format);
     bool savePointCloud(const char* filename, sl::MESH_FILE_FORMAT format);
     bool loadMesh(const char* filename, int* numVertices, int* numTriangles, int* numSubmeshes, int* updatedIndices, int* numVerticesTot, int* numTrianglesTot, const int maxSubmesh, int* texturesSize = nullptr);
@@ -139,6 +143,7 @@ public:
     sl::ERROR_CODE enableStreaming(sl::STREAMING_CODEC codec, unsigned int bitrate, unsigned short port, int gopSize, bool adaptativeBitrate, int chunk_size, int target_framerate);
     bool isStreamingEnabled();
     void disableStreaming();
+	SL_StreamingParameters* getStreamingParameters();
 
     /*****************************
      ****** Save fct utils ********
@@ -152,6 +157,7 @@ public:
      *************************************/
 #if WITH_OBJECT_DETECTION
     sl::ERROR_CODE enableObjectDetection(SL_ObjectDetectionParameters* objparams);
+	SL_ObjectDetectionParameters* getObjectDetectionParameters();
     void pauseObjectDetection(bool status);
     void disableObjectDetection();
 	sl::ERROR_CODE ingestCustomBoxObjectData(int nb_objects, SL_CustomBoxObjectData* objects_in);

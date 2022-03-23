@@ -324,8 +324,8 @@ extern "C" {
         return err;
     }
 
-	INTERFACE_API bool sl_is_opened(int camera_id) {
-		return  ZEDController::get(camera_id)->zed.isOpened();
+	INTERFACE_API bool sl_is_opened(int c_id) {
+		return  ZEDController::get(c_id)->zed.isOpened();
 	}
 
     INTERFACE_API SL_InitParameters* sl_get_init_parameters(int c_id) {
@@ -363,6 +363,33 @@ extern "C" {
         return res;
     }
 
+	INTERFACE_API int sl_convert_coordinate_system(struct SL_Quaternion* rotation, struct SL_Vector3* translation, enum SL_COORDINATE_SYSTEM coord_system_src, enum SL_COORDINATE_SYSTEM coord_system_dest) {
+
+		sl::Translation sl_trans(translation->x, translation->y, translation->z);
+		sl::Orientation sl_rotation(sl::float4(rotation->x, rotation->y, rotation->z, rotation->w));
+
+		sl::Transform motionMat(sl_rotation, sl_trans);
+
+		sl::ERROR_CODE err = sl::convertCoordinateSystem(motionMat, (sl::COORDINATE_SYSTEM)coord_system_src, (sl::COORDINATE_SYSTEM)coord_system_dest);
+		sl_rotation = motionMat.getOrientation();
+		sl_trans = motionMat.getTranslation();
+		rotation->x = sl_rotation.x;
+		rotation->y = sl_rotation.y;
+		rotation->z = sl_rotation.z;
+		rotation->w = sl_rotation.w;
+
+		translation->x = sl_trans.x;
+		translation->y = sl_trans.y;
+		translation->z = sl_trans.z;
+
+		return (int)err;
+	}
+
+	/*INTERFACE_API void sl_get_sdk_version(int *major, int *minor, int *patch) {
+
+		sl::Camera::getSDKVersion(*major, *minor, *patch);
+	}*/
+
     INTERFACE_API int sl_get_input_type(int c_id) {
         if (!ZEDController::get(c_id)->isNull()) {
             return ZEDController::get(c_id)->getInputType();
@@ -372,14 +399,14 @@ extern "C" {
 
     INTERFACE_API int sl_get_zed_serial(int c_id) {
         if (!ZEDController::get(c_id)->isNull()) {
-            return (int)ZEDController::get(c_id)->getCameraInformation()->serial_number;
+            return (int)ZEDController::get(c_id)->getSLCameraInformation()->serial_number;
         }
         return -1;
     }
 
     INTERFACE_API int sl_get_camera_firmware(int c_id) {
         if (!ZEDController::get(c_id)->isNull()) {
-            return (int)ZEDController::get(c_id)->getCameraInformation()->camera_configuration.firmware_version;
+            return (int)ZEDController::get(c_id)->getSLCameraInformation()->camera_configuration.firmware_version;
         }
 
         return -1;
@@ -387,7 +414,7 @@ extern "C" {
 
     INTERFACE_API int sl_get_sensors_firmware(int c_id) {
         if (!ZEDController::get(c_id)->isNull()) {
-            return (int)ZEDController::get(c_id)->getCameraInformation()->sensors_configuration.firmware_version;
+            return (int)ZEDController::get(c_id)->getSLCameraInformation()->sensors_configuration.firmware_version;
         }
 
         return -1;
@@ -408,23 +435,42 @@ extern "C" {
             return (int) sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
-    INTERFACE_API void sl_get_device_list(SL_DeviceProperties device_list[MAX_CAMERA_PLUGIN], int* nbDevices) {
+    INTERFACE_API void sl_get_device_list(struct SL_DeviceProperties device_list[MAX_CAMERA_PLUGIN], int* nbDevices) {
 
         std::vector<sl::DeviceProperties> devices = sl::Camera::getDeviceList();
         *nbDevices = devices.size();
         for (int i = 0; i < devices.size(); i++) {
             if (i < MAX_CAMERA_PLUGIN) {
                 SL_DeviceProperties device;
-
                 device.camera_model = (SL_MODEL) devices[i].camera_model;
                 device.camera_state = (SL_CAMERA_STATE) devices[i].camera_state;
                 device.id = devices[i].id;
                 device.sn = devices[i].serial_number;
                 device_list[i] = device;
-
             }
         }
     }
+
+	INTERFACE_API void sl_get_streaming_device_list(struct SL_StreamingProperties streaming_device_list[MAX_CAMERA_PLUGIN], int* nbDevices) {
+
+		std::vector<sl::StreamingProperties> devices = sl::Camera::getStreamingDeviceList();
+		*nbDevices = devices.size();
+		for (int i = 0; i < devices.size(); i++) {
+			if (i < MAX_CAMERA_PLUGIN) {
+				SL_StreamingProperties device;
+
+				device.codec = (SL_STREAMING_CODEC)devices[i].codec;
+				device.current_bitrate = devices[i].current_bitrate;
+				device.port = devices[i].port;
+				device.serial_number = devices[i].serial_number;
+
+				if (devices[i].ip.size() < 16) {
+					memcpy(&device.ip[0], devices[i].ip.c_str(), devices[i].ip.size() * sizeof(unsigned char));
+				}
+				streaming_device_list[i] = device;
+			}
+		}
+	}
 
     INTERFACE_API int sl_reboot(int sn, bool full_reboot) {
         return (int) sl::Camera::reboot(sn, full_reboot);
@@ -433,12 +479,20 @@ extern "C" {
 
     //////// Recording //////////////////
 
-    INTERFACE_API int sl_enable_recording(int c_id, const char* path, enum SL_SVO_COMPRESSION_MODE compressionMode, unsigned int bitrate, int target_fps, bool transcode) {
+    INTERFACE_API int sl_enable_recording(int c_id, const char* filename, enum SL_SVO_COMPRESSION_MODE compression_mode, unsigned int bitrate, int target_fps, bool transcode) {
         if (!ZEDController::get(c_id)->isNull()) {
-            return (int) ZEDController::get(c_id)->enableRecording(path, (sl::SVO_COMPRESSION_MODE)compressionMode, bitrate, target_fps, transcode);
+            return (int) ZEDController::get(c_id)->enableRecording(filename, (sl::SVO_COMPRESSION_MODE)compression_mode, bitrate, target_fps, transcode);
         }
         return (int) sl::ERROR_CODE::CAMERA_NOT_DETECTED;
     }
+
+	INTERFACE_API struct SL_RecordingStatus* sl_get_recording_status(int c_id) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return ZEDController::get(c_id)->getRecordingStatus();
+		}
+		else
+			return nullptr;
+	}
 
     INTERFACE_API void sl_disable_recording(int c_id) {
         if (!ZEDController::get(c_id)->isNull()) {
@@ -446,9 +500,17 @@ extern "C" {
         }
     }
 
-	INTERFACE_API void sl_pause_recording(int camera_id, bool status) {
-		if (!ZEDController::get(camera_id)->isNull()) {
-			ZEDController::get(camera_id)->zed.pauseRecording(status);
+	INTERFACE_API struct SL_RecordingParameters* sl_get_recording_parameters(int c_id) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return ZEDController::get(c_id)->getRecordingParameters();
+		}
+		else
+			return nullptr;
+	}
+
+	INTERFACE_API void sl_pause_recording(int c_id, bool status) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			ZEDController::get(c_id)->zed.pauseRecording(status);
 		}
 	}
 
@@ -483,9 +545,9 @@ extern "C" {
             return -1;
     }
 
-	INTERFACE_API float sl_get_current_fps(int camera_id) {
-		if (!ZEDController::get(camera_id)->isNull())
-			return ZEDController::get(camera_id)->zed.getCurrentFPS();
+	INTERFACE_API float sl_get_current_fps(int c_id) {
+		if (!ZEDController::get(c_id)->isNull())
+			return ZEDController::get(c_id)->zed.getCurrentFPS();
 		else
 			return -1;
 	}
@@ -517,24 +579,31 @@ extern "C" {
             return ZEDController::get(c_id)->zed.updateSelfCalibration();
     }
 
-    INTERFACE_API SL_CalibrationParameters* sl_get_calibration_parameters(int c_id, bool raw) {
+	INTERFACE_API struct SL_CameraInformation* sl_get_camera_information(int c_id, int width, int height) {
+		if (!ZEDController::get(c_id)->isNull())
+			return ZEDController::get(c_id)->getCameraInformation(width, height);
+		else
+			return nullptr;
+	}
+
+    INTERFACE_API struct SL_CalibrationParameters* sl_get_calibration_parameters(int c_id, bool raw) {
         if (!ZEDController::get(c_id)->isNull())
             return ZEDController::get(c_id)->getCalibrationParameters(raw);
         else
             return nullptr;
     }
 
-    INTERFACE_API SL_SensorsConfiguration* sl_get_sensors_configuration(int c_id) {
+    INTERFACE_API struct SL_SensorsConfiguration* sl_get_sensors_configuration(int c_id) {
         if (!ZEDController::get(c_id)->isNull()) {
             return ZEDController::get(c_id)->getSensorsConfiguration();
         } else
             return nullptr;
     }
 
-    INTERFACE_API void sl_get_camera_imu_transform(int c_id, SL_Vector3 *translation, SL_Quaternion *rotation) {
+    INTERFACE_API void sl_get_camera_imu_transform(int c_id, struct SL_Vector3 *translation, struct SL_Quaternion *rotation) {
 
         if (!ZEDController::get(c_id)->isNull()) {
-            sl::Transform t = ZEDController::get(c_id)->getCameraInformation()->camera_imu_transform;
+            sl::Transform t = ZEDController::get(c_id)->getSLCameraInformation()->camera_imu_transform;
             sl::Translation trans = t.getTranslation();
             translation->x = trans.x;
             translation->y = trans.y;
@@ -568,7 +637,7 @@ extern "C" {
             ZEDController::get(c_id)->zed.setCameraSettings((sl::VIDEO_SETTINGS)mode, value);
     }
 
-    INTERFACE_API int sl_set_roi_for_aec_agc(int c_id, enum SL_SIDE side, SL_Rect* roi, bool reset) {
+    INTERFACE_API int sl_set_roi_for_aec_agc(int c_id, enum SL_SIDE side, struct SL_Rect* roi, bool reset) {
         if (!ZEDController::get(c_id)->isNull()) {
             sl::Rect rect = sl::Rect(roi->x, roi->y, roi->width, roi->height);
             return (int) ZEDController::get(c_id)->zed.setCameraSettings(sl::VIDEO_SETTINGS::AEC_AGC_ROI, rect, (sl::SIDE)side, reset);
@@ -583,7 +652,7 @@ extern "C" {
             return (int) sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
-    INTERFACE_API int sl_get_roi_for_aec_agc(int c_id, enum SL_SIDE side, SL_Rect* roi) {
+    INTERFACE_API int sl_get_roi_for_aec_agc(int c_id, enum SL_SIDE side, struct SL_Rect* roi) {
         if (!ZEDController::get(c_id)->isNull()) {
             sl::Rect rect;
             int err = (int) ZEDController::get(c_id)->zed.getCameraSettings(sl::VIDEO_SETTINGS::AEC_AGC_ROI, rect, (sl::SIDE)side);
@@ -632,26 +701,26 @@ extern "C" {
 
     ///////////////////// MOTION TRACKING //////////////////////////////
 
-    /*INTERFACE_API int enable_positional_tracking(int camera_id, SL_Quaternion *initial_world_rotation, SL_Vector3 *initial_world_position, bool enable_area_memory, bool enable_pose_smoothing, bool set_floor_as_origin, bool set_as_static,
+    /*INTERFACE_API int enable_positional_tracking(int c_id, SL_Quaternion *initial_world_rotation, SL_Vector3 *initial_world_position, bool enable_area_memory, bool enable_pose_smoothing, bool set_floor_as_origin, bool set_as_static,
                 bool enable_imu_fusion, const char* area_file_path)
         {
-                if (!ZEDController::get(camera_id)->isNull())
-                        return (int)ZEDController::get(camera_id)->enableTracking(initial_world_rotation, initial_world_position, enable_area_memory, enable_pose_smoothing, set_floor_as_origin, set_as_static, enable_imu_fusion, area_file_path);
+                if (!ZEDController::get(c_id)->isNull())
+                        return (int)ZEDController::get(c_id)->enableTracking(initial_world_rotation, initial_world_position, enable_area_memory, enable_pose_smoothing, set_floor_as_origin, set_as_static, enable_imu_fusion, area_file_path);
                 else
                         return (int)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }*/
 
-	INTERFACE_API bool sl_is_positional_tracking_enabled(int camera_id) {
-		if (!ZEDController::get(camera_id)->isNull()) {
-			return ZEDController::get(camera_id)->zed.isPositionalTrackingEnabled();
+	INTERFACE_API bool sl_is_positional_tracking_enabled(int c_id) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return ZEDController::get(c_id)->zed.isPositionalTrackingEnabled();
 		}
 		else
 			return false;
 	}
 
-    INTERFACE_API int sl_enable_positional_tracking(int camera_id, SL_PositionalTrackingParameters * tracking_param, const char * area_path) {
-        if (!ZEDController::get(camera_id)->isNull()) {
-            return (int) ZEDController::get(camera_id)->enableTracking(&tracking_param->initial_world_rotation, &tracking_param->initial_world_position, tracking_param->enable_area_memory, tracking_param->enable_pose_smothing, tracking_param->set_floor_as_origin,
+    INTERFACE_API int sl_enable_positional_tracking(int c_id, SL_PositionalTrackingParameters * tracking_param, const char * area_path) {
+        if (!ZEDController::get(c_id)->isNull()) {
+            return (int) ZEDController::get(c_id)->enableTracking(&tracking_param->initial_world_rotation, &tracking_param->initial_world_position, tracking_param->enable_area_memory, tracking_param->enable_pose_smothing, tracking_param->set_floor_as_origin,
                     tracking_param->set_as_static, tracking_param->enable_imu_fusion, area_path);
         } else
             return (int) sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
@@ -741,9 +810,9 @@ extern "C" {
 
     /*********************************************** Spatial Mapping  functions ***********************************/
 
-    INTERFACE_API int sl_enable_spatial_mapping(int camera_id, struct SL_SpatialMappingParameters* mapping_param) {
-        if (!ZEDController::get(camera_id)->isNull())
-            return (int) ZEDController::get(camera_id)->enableSpatialMapping(*mapping_param);
+    INTERFACE_API int sl_enable_spatial_mapping(int c_id, struct SL_SpatialMappingParameters* mapping_param) {
+        if (!ZEDController::get(c_id)->isNull())
+            return (int) ZEDController::get(c_id)->enableSpatialMapping(*mapping_param);
         else
             return (int) sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
@@ -753,6 +822,14 @@ extern "C" {
             ZEDController::get(c_id)->disableSpatialMapping();
 
     }
+
+	INTERFACE_API SL_SpatialMappingParameters* sl_get_spatial_mapping_parameters(int c_id) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return ZEDController::get(c_id)->getSpatialMappingParameters();
+		}
+		else
+			return nullptr;
+	}
 
     INTERFACE_API void sl_pause_spatial_mapping(int c_id, bool status) {
         if (!ZEDController::get(c_id)->isNull())
@@ -870,9 +947,9 @@ extern "C" {
             return false;
     }
 
-    INTERFACE_API bool sl_filter_mesh(int camera_id, enum SL_MESH_FILTER filter_params, int* nb_vertices, int* nb_triangles, int* nb_updated_submeshes, int* updated_indices, int* nb_vertices_tot, int* nb_triangles_tot, const int max_submesh) {
-        if (!ZEDController::get(camera_id)->isNull())
-            return ZEDController::get(camera_id)->filterMesh((sl::MeshFilterParameters::MESH_FILTER)filter_params, nb_vertices, nb_triangles, nb_updated_submeshes, updated_indices, nb_vertices_tot, nb_triangles_tot, max_submesh);
+    INTERFACE_API bool sl_filter_mesh(int c_id, enum SL_MESH_FILTER filter_params, int* nb_vertices, int* nb_triangles, int* nb_updated_submeshes, int* updated_indices, int* nb_vertices_tot, int* nb_triangles_tot, const int max_submesh) {
+        if (!ZEDController::get(c_id)->isNull())
+            return ZEDController::get(c_id)->filterMesh((sl::MeshFilterParameters::MESH_FILTER)filter_params, nb_vertices, nb_triangles, nb_updated_submeshes, updated_indices, nb_vertices_tot, nb_triangles_tot, max_submesh);
         else
             return false;
 
@@ -929,6 +1006,14 @@ extern "C" {
         }
     }
 
+	INTERFACE_API struct SL_StreamingParameters* sl_get_streaming_parameters(int c_id) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return ZEDController::get(c_id)->getStreamingParameters();
+		}
+		else
+			return nullptr;
+	}
+
     /*********************************************** Save to File utils ***********************************/
     INTERFACE_API int sl_save_current_image(int cameraID, enum SL_VIEW view, const char* fileName) {
         if (!ZEDController::get(cameraID)->isNull()) {
@@ -977,6 +1062,14 @@ extern "C" {
             return (int) sl::ERROR_CODE::FAILURE;
     }
 
+	INTERFACE_API SL_ObjectDetectionParameters* sl_get_object_detection_parameters(int c_id) {
+		if (!ZEDController::get(c_id)->isNull()) {
+			return ZEDController::get(c_id)->getObjectDetectionParameters();
+		}
+		else
+			return nullptr;
+	}
+
     INTERFACE_API void sl_pause_objects_detection(int c_id, bool status) {
         if (!ZEDController::get(c_id)->isNull()) {
             ZEDController::get(c_id)->pauseObjectDetection(status);
@@ -1021,14 +1114,14 @@ extern "C" {
             return (int) sl::ERROR_CODE::FAILURE;
     }
 
-	INTERFACE_API int sl_get_objects_batch_csharp(int camera_id, int index, int* nb_data, int* id, int* label, int* sublabel, int* tracking_state,
+	INTERFACE_API int sl_get_objects_batch_csharp(int c_id, int index, int* nb_data, int* id, int* label, int* sublabel, int* tracking_state,
 		struct SL_Vector3 positions[MAX_TRAJECTORY_SIZE], float position_covariances[MAX_TRAJECTORY_SIZE][6], struct SL_Vector3 velocities[MAX_TRAJECTORY_SIZE], unsigned long long timestamps[MAX_TRAJECTORY_SIZE],
 		struct SL_Vector2 bounding_boxes_2d[MAX_TRAJECTORY_SIZE][4], struct SL_Vector3 bounding_boxes[MAX_TRAJECTORY_SIZE][8], float confidences[MAX_TRAJECTORY_SIZE], int action_states[MAX_TRAJECTORY_SIZE],
 		struct SL_Vector2 keypoints_2d[MAX_TRAJECTORY_SIZE][18], struct SL_Vector3 keypoints[MAX_TRAJECTORY_SIZE][18], struct SL_Vector2 head_bounding_boxes_2d[MAX_TRAJECTORY_SIZE][4], struct SL_Vector3 head_bounding_boxes[MAX_TRAJECTORY_SIZE][8],
 		struct SL_Vector3 head_positions[MAX_TRAJECTORY_SIZE], float keypoints_confidences[MAX_TRAJECTORY_SIZE][18]) {
 
-        if (!ZEDController::get(camera_id)->isNull()) {
-            return (int) ZEDController::get(camera_id)->getObjectsBatchDataCSharp(index, nb_data, id, label, sublabel, tracking_state,
+        if (!ZEDController::get(c_id)->isNull()) {
+            return (int) ZEDController::get(c_id)->getObjectsBatchDataCSharp(index, nb_data, id, label, sublabel, tracking_state,
                     positions, position_covariances, velocities, timestamps,
                     bounding_boxes_2d, bounding_boxes, confidences, action_states,
                     keypoints_2d, keypoints, head_bounding_boxes_2d, head_bounding_boxes, head_positions,

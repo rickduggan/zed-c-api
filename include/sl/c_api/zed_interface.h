@@ -67,8 +67,8 @@ extern "C" {
     \param ip : ip of the camera to open (for Stream input).
     \param stream_port : port of the camera to open (for Stream input).
     \param output_file : sdk verbose log file. Redirect the SDK verbose message to file.
-    \param opt_settings_path : optionnal settings path. Equivalent to  \ref InitParameters::optional_settings_path.
-    \param opencv_calib_path : optionnal openCV calibration file. Equivalent to  \ref InitParameters::optional_opencv_calibration_file.
+    \param opt_settings_path : optional settings path. Equivalent to  \ref InitParameters::optional_settings_path.
+    \param opencv_calib_path : optional openCV calibration file. Equivalent to  \ref InitParameters::optional_opencv_calibration_file.
     \return An error code giving information about the internal process. If SUCCESS (0) is returned, the camera is ready to use. Every other code indicates an error and the program should be stopped.
     */
     INTERFACE_API int sl_open_camera(int camera_id, struct SL_InitParameters *init_parameters, const char* path_svo, const char* ip, int stream_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path);
@@ -95,7 +95,7 @@ extern "C" {
 
     /**
     \brief Destroys the camera and disable the textures.
-    \param camera_idid of the camera instance.
+    \param camera_id of the camera instance.
      */
     INTERFACE_API void sl_close_camera(int camera_id);
     /**
@@ -110,10 +110,18 @@ extern "C" {
     \brief Lists all the connected devices with their associated information.
 
     This function lists all the cameras available and provides their serial number, models and other information.
-    \param device_list [Out] : the devices properties for each connect camera.
-    \param nb_devices : the number of cameras connected.
+    \param device_list [Out] : the devices properties for each connected camera.
+    \param nb_devices [Out] : the number of cameras connected.
      */
     INTERFACE_API void sl_get_device_list(struct SL_DeviceProperties device_list[MAX_CAMERA_PLUGIN], int* nb_devices);
+
+	/**
+	\brief List all the streaming devices with their associated information.
+	\param device_list [Out] : the devices properties for each connected camera.
+	\param nb_devices  [Out]: the number of cameras connected.
+	\return The streaming properties for each connected camera
+	 */
+	INTERFACE_API void sl_get_streaming_device_list(struct SL_StreamingProperties streaming_device_list[MAX_CAMERA_PLUGIN], int* nb_devices);
 
     /**
     \brief Performs an hardware reset of the ZED 2 / ZED 2i.
@@ -135,11 +143,23 @@ extern "C" {
      */
     INTERFACE_API int sl_enable_recording(int camera_id, const char* filename, enum SL_SVO_COMPRESSION_MODE compression_mode, unsigned int bitrate, int target_fps, bool transcode);
 
+	/**
+	\brief Get the recording information
+	\return The recording state structure. For more details, see \ref RecordingStatus.
+	 */
+	INTERFACE_API struct SL_RecordingStatus* sl_get_recording_status(int camera_id);
     /**
     \brief Disables the recording initiated by enableRecording() and closes the generated file.
     \param camera_id : id of the camera instance.
      */
     INTERFACE_API void sl_disable_recording(int camera_id);
+
+	/**
+	\brief Returns the recording parameters used. Correspond to the structure send when the \ref sl_enable_recording() function was called.
+	\param camera_id : id of the camera instance.
+	\return \ref SL_RecordingParameters containing the parameters used for recording initialization.
+	 */
+	INTERFACE_API struct SL_RecordingParameters* sl_get_recording_parameters(int camera_id);
 
 	/**
 	\brief Pauses or resumes the recording.
@@ -240,6 +260,15 @@ extern "C" {
     \return The confidence threshold.
      */
     INTERFACE_API int sl_get_confidence_threshold(int camera_id);
+
+	/**
+	\brief Returns the calibration parameters, serial number and other information about the camera being used.
+	\param camera_id : id of the camera instance.
+	\param res_width : You can specify a size different from default image size to get the scaled camera information.
+	\param res_height : You can specify a size different from default image size to get the scaled camera information.
+	\return SL_CameraInformation containing the calibration parameters of the ZED, as well as serial number and firmware version.
+	 */
+	INTERFACE_API struct SL_CameraInformation* sl_get_camera_information(int camera_id, int res_width, int res_height);
 
     /**
     \brief Performs a new self calibration process.
@@ -397,6 +426,23 @@ extern "C" {
      */
     INTERFACE_API char* sl_get_sdk_version();
 
+	/**
+	\brief Change the coordinate system of a transform matrix.
+	\param rotation [In, Out] : rotation to transform.
+	\param translation [In, Out] : translation to transform.
+	\param coord_system_src : the current coordinate system of the translation/rotation.
+	\param coord_system_dest: the destination coordinate system for the translation/rotation.
+	 */
+	INTERFACE_API int sl_convert_coordinate_system(struct SL_Quaternion* rotation, struct SL_Vector3* translation, enum SL_COORDINATE_SYSTEM coord_system_src, enum SL_COORDINATE_SYSTEM coord_system_dest);
+
+	/**
+	\brief Returns the version of the currently installed ZED SDK.
+	\param major : major int of the version filled
+	\param minor : minor int of the version filled
+	\param patch : patch int of the version filled
+	 */
+	//INTERFACE_API void sl_get_sdk_version(int *major, int *minor, int *patch);
+
     /**
     \brief Gets the current position of the SVO being recorded to.
     \param camera_id : id of the camera instance.
@@ -539,6 +585,13 @@ extern "C" {
     \param camera_id : id of the camera instance.
      */
     INTERFACE_API void sl_disable_spatial_mapping(int camera_id);
+
+	/**
+	\brief Returns the spatial mapping parameters used. Correspond to the structure send when the \ref enableSpatialMapping() function was called.
+	\param camera_id : id of the camera instance.
+	\return \ref SpatialMappingParameters containing the parameters used for spatial mapping intialization.
+	 */
+	INTERFACE_API struct SL_SpatialMappingParameters* sl_get_spatial_mapping_parameters(int camera_id);
     /**
      Sets the pause state of the data integration mechanism for the ZED's spatial mapping.
      \param camera_id : id of the camera instance.
@@ -801,17 +854,24 @@ extern "C" {
     \return An ERROR_CODE that defines if the stream was started.
      */
     INTERFACE_API int sl_enable_streaming(int camera_id, enum SL_STREAMING_CODEC codec, unsigned int bitrate, unsigned short port, int gop_size, int adaptative_bitrate, int chunk_size, int target_framerate);
+	
+	/**
+	\brief Disables the streaming initiated by enable_streaming().
+	\param camera_id : id of the camera instance.
+	 */
+	INTERFACE_API void sl_disable_streaming(int camera_id);
     /**
     \brief Tells if the streaming is running (true) or still initializing (false).
     \param camera_id : id of the camera instance.
     \return True is the streaming is running, False if still initializing.
      */
     INTERFACE_API int sl_is_streaming_enabled(int camera_id);
-    /**
-    \brief Disables the streaming initiated by enable_streaming().
-    \param camera_id : id of the camera instance.
-     */
-    INTERFACE_API void sl_disable_streaming(int camera_id);
+
+	/**
+	\brief Returns the streaming parameters used. Correspond to the structure send when the \ref sl_enable_streaming() function was called.
+	\return \ref SL_StreamingParameters containing the parameters used for streaming initialization.
+	 */
+	INTERFACE_API struct SL_StreamingParameters* sl_get_streaming_parameters(int camera_id);
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////// Save to File Utils ////////////////////////////////////////////////////////////////////
@@ -886,6 +946,14 @@ extern "C" {
              - \ref ERROR_CODE::FAILURE : otherwise.\n
      */
     INTERFACE_API int sl_enable_objects_detection(int camera_id, struct SL_ObjectDetectionParameters* object_detection_parameters);
+
+	/**
+	\brief Returns the object detection parameters used. Correspond to the structure send when the \ref enableObjectDetection() function was called.
+	\param camera_id : id of the camera instance.
+	\return \ref ObjectDetectionParameters containing the parameters used for object detection initialization.
+	 */
+	INTERFACE_API struct SL_ObjectDetectionParameters* sl_get_object_detection_parameters(int cmaera_id);
+
     /**
     \brief Pauses or resumes the object detection processes.
 

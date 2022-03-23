@@ -989,7 +989,7 @@ struct SL_DeviceProperties {
 	the camera serial number
 	\n Not provided for Windows
 	 */
-	int sn;
+	unsigned int sn;
 };
 
 struct SL_CameraParameters {
@@ -1042,6 +1042,25 @@ struct SL_SensorParameters {
 	bool is_available;
 };
 
+
+/**
+\brief Structure containing information about the camera sensor
+\note This object is meant to be used as a read-only container, editing any of its field won't impact the SDK.
+\warning CalibrationParameters are returned in SL_COORDINATE_SYSTEM_IMAGE, they are not impacted by the InitParameters::coordinate_system
+ */
+struct SL_CameraConfiguration {
+	/**< Intrinsic and Extrinsic stereo parameters for rectified/undistorded images (default).  */
+	struct SL_CalibrationParameters calibration_parameters;
+	/**< Intrinsic and Extrinsic stereo parameters for original images (unrectified/distorded). */
+	struct SL_CalibrationParameters calibration_parameters_raw;
+	/**< The internal firmware version of the camera. */
+	unsigned int firmware_version;
+	/**< The camera capture FPS */
+	float fps;
+	/**< The camera resolution */
+	struct SL_Resolution resolution;
+};
+
 /**
 Structure containing information about all the sensors available in the current device.
 */
@@ -1085,6 +1104,29 @@ struct SL_SensorsConfiguration
 	struct SL_SensorParameters barometer_parameters;
 };
 
+
+/**
+\brief Structure containing information of a single camera (serial number, model, input type, etc.)
+
+That information about the camera will be returned by sl_get_camera_information().
+
+\note This object is meant to be used as a read-only container, editing any of its field won't impact the SDK.
+ */
+struct SL_CameraInformation {
+
+	/**< The serial number of the camera.  */
+	unsigned int serial_number;
+	/**< The model of the camera (ZED, ZED-M or ZED2). */
+	enum SL_MODEL camera_model;
+	/**< Input type used in SDK. */
+	enum SL_INPUT_TYPE input_type;
+	/**< Camera configuration as defined in \ref CameraConfiguration. */
+	struct SL_CameraConfiguration camera_configuration;
+	/**< Device Sensors configuration as defined in \ref SensorsConfiguration. */
+	struct SL_SensorsConfiguration sensors_configuration;
+};
+
+
 /**
 Parameters for positional tracking initialization.
 */
@@ -1102,13 +1144,11 @@ struct SL_PositionalTrackingParameters
 	This mode enables the camera to remember its surroundings. This helps correct positional tracking drift, and can be helpful for positioning
 	different cameras relative to one other in space.
 	\n default: true
-
 	\warning: This mode requires more resources to run, but greatly improves tracking accuracy. We recommend leaving it on by default.
 		*/
 	bool enable_area_memory;
 	/**
 	This mode enables smooth pose correction for small drift correction.
-	\n default: false
 		*/
 	bool enable_pose_smothing;
 	/**
@@ -1133,6 +1173,168 @@ struct SL_PositionalTrackingParameters
 	\note This setting has no impact on the tracking of a ZED camera; only the ZED Mini uses a built-in IMU.
 		*/
 	bool enable_imu_fusion;
+};
+
+/**
+\brief Recording structure that contains information about SVO.
+ */
+struct SL_RecordingStatus {
+	/**< Recorder status, true if enabled */
+	bool is_recording; 
+	/**< Recorder status, true if the pause is enabled */
+	bool is_paused; 
+	/**< Status of current frame. True for success or false if the frame couldn't be written in the SVO file.*/
+	bool status; 
+	/**< Compression time for the current frame in ms.*/
+	double current_compression_time; 
+	/**< Compression ratio (% of raw size) for the current frame.*/
+	double current_compression_ratio; 
+	/**< Average compression time in ms since beginning of recording.*/
+	double average_compression_time;
+	/**< Average compression ratio (% of raw size) since beginning of recording.*/
+	double average_compression_ratio; 
+};
+
+/**
+\brief Sets the recording parameters.
+ */
+struct SL_RecordingParameters {
+	/**
+	\brief filename of the SVO file.
+	 */
+	unsigned char video_filename[256];
+
+	/**
+	\brief can be one of the \ref SL_SVO_COMPRESSION_MODE enum
+	 */
+	enum SL_SVO_COMPRESSION_MODE compression_mode;
+
+	/**
+	 \brief overrides default bitrate of the SVO file, in KBits/s. Only works if \ref SVO_COMPRESSION_MODE is H264 or H265.
+	 \n default : 0 means default values (depends on the resolution)
+	 \note Available range : 0 or [1000 - 60000]
+	 */
+	unsigned int bitrate;
+
+	/**
+	 \brief defines the target framerate for the recording module.
+	 \warning This framerate must be below or equal to the camera framerate and camera framerate must be a multiple of the target framerate. It means that
+	 it must respect camera_framerate%target_framerate==0
+	 Allowed framerates are 15,30, 60 or 100 if possible.
+	 Any other values will be discarded and camera FPS will be taken.
+	 \n default : 0, meaning that the camera framerate will be taken
+	 */
+	unsigned int target_framerate;
+
+	/**
+	\brief In case of streaming input, if set to false, it will avoid decoding/re-encoding and convert directly streaming input into a SVO file.
+	This saves a encoding session and can be especially useful on NVIDIA Geforce cards where the number of encoding session is limited.
+	\note compression_mode, target_framerate and bitrate will be ignored in this mode.
+	 */
+	bool transcode_streaming_input;
+};
+
+/**
+\brief Sets the streaming parameters.
+\note Parameters can be user adjusted.
+ */
+struct SL_StreamingParameters {
+
+	/**
+	\brief Defines the codec used for streaming.
+	\warning If HEVC is used, make sure the receiving host is compatible with H265 decoding (Pascal NVIDIA card or newer). If not, prefer to use H264 since every compatible NVIDIA card supports H264 decoding
+		*/
+	enum SL_STREAMING_CODEC codec;
+
+	/**
+	\brief Defines the port used for streaming.
+	\warning Port must be an even number. Any odd number will be rejected.
+	\warning Port must be opened.
+	 */
+	unsigned short port;
+
+	/**
+	\brief Defines the streaming bitrate in Kbits/s
+	 *
+	 *
+	 *  | STREAMING_CODEC  | Resolution   | FPS   | bitrate (kbps) |
+	 *  |------------------|--------------|-------|----------------|
+	 *  | H264             |  HD2K        |   15  |     8500       |
+	 *  | H264             |  HD1080      |   30  |    12500       |
+	 *  | H264             |  HD720       |   60  |     7000       |
+	 *  | H265             |  HD2K        |   15  |     7000       |
+	 *  | H265             |  HD1080      |   30  |    11000       |
+	 *  | H265             |  HD720       |   60  |     6000       |
+
+	\note Available range : [1000 - 60000]
+	 */
+	unsigned int bitrate;
+
+	/**
+	\brief Defines the gop size in number of frames.
+	\note if value is set to -1, the gop size will last at maximum 2 seconds, depending on camera fps.
+	\note The gop size determines the maximum distance between IDR/I-frames. Very high GOP size will result in slightly more efficient compression, especially on static scenes. But latency will increase.
+	\note maximum value: 256
+	 */
+	int gop_size;
+
+	/**
+	\brief Enable/Disable adaptive bitrate
+	\note Bitrate will be adjusted depending the number of packet dropped during streaming.
+	\note if activated, bitrate can vary between [bitrate/4, bitrate]
+	\warning Currently, the adaptive bitrate only works when "sending" device is a NVIDIA Jetson (X1,X2,Xavier,Nano)
+	 */
+	bool adaptative_bitrate;
+
+	/**
+	\brief Defines a single chunk size
+	\note Stream buffers are divided in X number of chunk where each chunk is "chunk_size" bytes long.
+	\note Default value is 16084. You can lower this value if network generates a lot of packet lost : this will
+	generates more chunk for a single image, but each chunk sent will be lighter to avoid inside-chunk corruption.
+	Increasing this value can decrease latency.
+	\note Available range : [4096 - 65000]
+	 */
+	unsigned short chunk_size;
+
+
+	/**
+	 \brief defines the target framerate for the streaming output.
+	 \warning This framerate must be below or equal to the camera framerate. Allowed framerates are 15,30, 60 or 100 if possible.
+	 Any other values will be discarded and camera FPS will be taken.
+	 \ndefault : 0, meaning that the camera framerate will be taken
+	 */
+	unsigned int target_framerate;
+};
+
+/**
+\struct StreamingProperties
+\brief Properties of a streaming device
+  */
+struct SL_StreamingProperties {
+	/**
+	the streaming IP of the device
+	 */
+	unsigned char ip[16];
+
+	/**
+	the streaming port
+	 */
+	unsigned short port;
+
+	/**
+	the serial number of the streaming device
+	 */
+	unsigned int serial_number;
+
+	/**
+	the current bitrate of encoding of the streaming device
+	 */
+	int current_bitrate;
+
+	/**
+	the current codec used for compression in streaming device
+	 */
+	enum SL_STREAMING_CODEC codec;
 };
 
 

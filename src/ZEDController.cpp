@@ -4,25 +4,6 @@
 
 #include <sl/Camera.hpp>
 
-#define TIMEOUT_MAX 100
-
-#ifndef CheckCudaLastError
-#define CheckCudaLastError() __cudaLastError( /*__FILENAME__*/ __CUSTOM__PRETTY__FUNC__, __FILENAME__, __LINE__)
-
-static inline void __cudaLastError(const char *func, const char *file, const int line) {
-    cudaError err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        std::ostringstream s;
-
-        s << "in " << func << " at " << line << " : cuda error [" << err << "]: " << cudaGetErrorString(err);
-#if DEBUG_LOG_ENABLED
-        Logger::write(s.str());
-#endif // DEBUG_LOG_ENABLED
-
-    }
-}
-#endif
-
 inline bool checkKPvalidity(sl::float3 &kp, double render_threshold) {
     return (std::isnormal(kp.z) && kp.z > render_threshold);
 }
@@ -31,7 +12,7 @@ inline bool checkKPvalidity(sl::float4 &kp, double render_threshold) {
     return (std::isnormal(kp.w) && kp.w > render_threshold);
 }
 
-ZEDController* ZEDController::instance[MAX_CAMERA_PLUGIN] = {nullptr, nullptr, nullptr, nullptr};
+ZEDController* ZEDController::instance[MAX_CAMERA_PLUGIN] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr , nullptr, nullptr, nullptr, nullptr , nullptr, nullptr, nullptr, nullptr , nullptr, nullptr, nullptr, nullptr};
 
 ZEDController::ZEDController(int i) {
     input_type = -1;
@@ -279,6 +260,24 @@ SL_PositionalTrackingParameters* ZEDController::getPositionalTrackingParameters(
     c_trackingParams->set_as_static = trackingParams.set_as_static;
     c_trackingParams->set_floor_as_origin = trackingParams.set_floor_as_origin;
     return c_trackingParams;
+}
+
+SL_StreamingParameters* ZEDController::getStreamingParameters() {
+	SL_StreamingParameters* c_streamingParams = new SL_StreamingParameters();
+	memset(c_streamingParams, 0, sizeof(SL_StreamingParameters));
+
+	sl::StreamingParameters streaming_params = zed.getStreamingParameters();
+
+	c_streamingParams->adaptative_bitrate = streaming_params.adaptative_bitrate;
+	c_streamingParams->bitrate = streaming_params.bitrate;
+	c_streamingParams->chunk_size = streaming_params.chunk_size;
+	c_streamingParams->codec = (SL_STREAMING_CODEC)streaming_params.codec;
+	c_streamingParams->gop_size = streaming_params.gop_size;
+	c_streamingParams->port = streaming_params.port;
+	c_streamingParams->target_framerate = streaming_params.target_framerate;
+
+
+	return c_streamingParams;
 }
 
 
@@ -599,6 +598,46 @@ void ZEDController::disableRecording() {
     }
 }
 
+struct SL_RecordingParameters* ZEDController::getRecordingParameters() {
+	SL_RecordingParameters* c_recording_params = new SL_RecordingParameters();
+	memset(c_recording_params, 0, sizeof(SL_RecordingParameters));
+
+	sl::RecordingParameters recording_params = zed.getRecordingParameters();
+
+	c_recording_params->bitrate = recording_params.bitrate;
+	c_recording_params->compression_mode = (SL_SVO_COMPRESSION_MODE)recording_params.compression_mode;
+	c_recording_params->target_framerate = recording_params.target_framerate;
+	c_recording_params->transcode_streaming_input = recording_params.transcode_streaming_input;
+	
+	sl::String video_filename = recording_params.video_filename;
+
+	if (video_filename.size() < 256) {
+		memcpy(&c_recording_params->video_filename[0], video_filename, video_filename.size() * sizeof(char));
+	}
+
+	return c_recording_params;
+}
+
+SL_RecordingStatus* ZEDController::getRecordingStatus() {
+	if (!isNull()) {
+		SL_RecordingStatus* c_recording_status = new SL_RecordingStatus();
+		memset(c_recording_status, 0, sizeof(SL_RecordingStatus));
+		
+		sl::RecordingStatus recStatus = zed.getRecordingStatus();
+
+		c_recording_status->average_compression_ratio = recStatus.average_compression_ratio;
+		c_recording_status->average_compression_time = recStatus.average_compression_time;
+		c_recording_status->current_compression_ratio = recStatus.current_compression_ratio;
+		c_recording_status->current_compression_time = recStatus.current_compression_time;
+		c_recording_status->is_paused = recStatus.is_paused;
+		c_recording_status->is_recording = recStatus.is_recording;
+
+		return c_recording_status;
+	}
+	else
+		return nullptr;
+}
+
 SL_PlaneData* ZEDController::findFloorPlane(SL_Quaternion *resetQuaternion, SL_Vector3* resetTranslation, SL_Quaternion priorQuaternion, SL_Vector3 priorTranslation) {
     if (!isNull()) {
         sdk_mutex.lock();
@@ -808,7 +847,7 @@ sl::POSITIONAL_TRACKING_STATE ZEDController::getPoseArray(float* pose, int mat_t
         return sl::POSITIONAL_TRACKING_STATE::OFF;
 }
 
-sl::CameraInformation* ZEDController::getCameraInformation() {
+sl::CameraInformation* ZEDController::getSLCameraInformation() {
     if (!isNull()) {
         //sdk_mutex.lock();
         sl::CameraInformation params = zed.getCameraInformation();
@@ -913,6 +952,32 @@ SL_SensorsConfiguration* ZEDController::getSensorsConfiguration() {
     return params;
 }
 
+SL_CameraInformation* ZEDController::getCameraInformation(int width, int height) {
+	SL_CameraInformation* params = new SL_CameraInformation();
+	memset(params, 0, sizeof(SL_CameraInformation));
+	
+	sl::CameraInformation sl_camera_info = zed.getCameraInformation(sl::Resolution(width, height));
+
+	SL_CameraConfiguration camera_config;
+	camera_config.calibration_parameters = *getCalibrationParameters(false);
+	camera_config.calibration_parameters_raw = *getCalibrationParameters(true);
+	camera_config.firmware_version = sl_camera_info.camera_configuration.firmware_version;
+	camera_config.fps = sl_camera_info.camera_configuration.fps;
+
+	SL_Resolution res;
+	res.width = sl_camera_info.camera_configuration.resolution.width;
+	res.height = sl_camera_info.camera_configuration.resolution.height;
+	camera_config.resolution = res;
+
+	params->camera_configuration = camera_config;
+	params->camera_model = (SL_MODEL)sl_camera_info.camera_model;
+	params->input_type = (SL_INPUT_TYPE)sl_camera_info.input_type;
+	params->serial_number = sl_camera_info.serial_number;
+	params->sensors_configuration = *getSensorsConfiguration();
+
+	return params;
+}
+
 sl::MODEL ZEDController::getCameraModel() {
     if (!isNull()) {
         return zed.getCameraInformation().camera_model;
@@ -972,6 +1037,8 @@ sl::ERROR_CODE ZEDController::enableSpatialMapping(struct SL_SpatialMappingParam
         params.resolution_meter = mapping_param.resolution_meter;
         params.range_meter = mapping_param.range_meter;
         params.use_chunk_only = mapping_param.use_chunk_only;
+		params.reverse_vertex_order = mapping_param.reverse_vertex_order;
+
         if (mapping_param.map_type == SL_SPATIAL_MAP_TYPE_MESH) {
             params.save_texture = mapping_param.save_texture;
             params.max_memory_usage = mapping_param.max_memory_usage;
@@ -1222,6 +1289,23 @@ void ZEDController::disableSpatialMapping() {
 
 }
 
+SL_SpatialMappingParameters* ZEDController::getSpatialMappingParameters() {
+	SL_SpatialMappingParameters* c_mappingParams = new SL_SpatialMappingParameters();
+	memset(c_mappingParams, 0, sizeof(SL_SpatialMappingParameters));
+
+	sl::SpatialMappingParameters mappingParams = zed.getSpatialMappingParameters();
+
+	c_mappingParams->map_type = (SL_SPATIAL_MAP_TYPE)mappingParams.map_type;
+	c_mappingParams->max_memory_usage = mappingParams.max_memory_usage;
+	c_mappingParams->range_meter = mappingParams.range_meter;
+	c_mappingParams->resolution_meter = mappingParams.resolution_meter;
+	c_mappingParams->reverse_vertex_order = mappingParams.reverse_vertex_order;
+	c_mappingParams->save_texture = mappingParams.save_texture;
+	c_mappingParams->use_chunk_only = mappingParams.use_chunk_only;
+
+	return c_mappingParams;
+}
+
 void ZEDController::mergeChunks(int numberFaces, int* numVertices, int* numTriangles, int* numUpdatedSubmeshes, int* updatedIndices, int* numVerticesTot, int* numTrianglesTot, const int maxSubmesh) {
     if (!isNull()) {
         mesh.mergeChunks(numberFaces);
@@ -1447,6 +1531,30 @@ sl::ERROR_CODE ZEDController::enableObjectDetection(SL_ObjectDetectionParameters
         return v;
     }
     return sl::ERROR_CODE::CAMERA_NOT_DETECTED;
+}
+
+SL_ObjectDetectionParameters* ZEDController::getObjectDetectionParameters() {
+	SL_ObjectDetectionParameters* c_odParams = new SL_ObjectDetectionParameters();
+	memset(c_odParams, 0, sizeof(SL_ObjectDetectionParameters));
+
+	sl::ObjectDetectionParameters odParams = zed.getObjectDetectionParameters();
+
+	sl::BatchParameters batchParams = odParams.batch_parameters;
+
+	c_odParams->batch_parameters.enable = batchParams.enable;
+	c_odParams->batch_parameters.id_retention_time = batchParams.id_retention_time;
+	c_odParams->batch_parameters.latency = batchParams.latency;
+
+	c_odParams->body_format = (SL_BODY_FORMAT)odParams.body_format;
+	c_odParams->enable_body_fitting = odParams.enable_body_fitting;
+	c_odParams->enable_mask_output = odParams.enable_mask_output;
+	c_odParams->enable_tracking = odParams.enable_tracking;
+	c_odParams->filtering_mode = (SL_OBJECT_FILTERING_MODE)odParams.filtering_mode;
+	c_odParams->image_sync = odParams.image_sync;
+	c_odParams->max_range = odParams.max_range;
+	c_odParams->model = (SL_DETECTION_MODEL)odParams.detection_model;
+
+	return c_odParams;
 }
 
 void ZEDController::pauseObjectDetection(bool status) {
