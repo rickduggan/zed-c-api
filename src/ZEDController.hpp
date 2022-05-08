@@ -1,7 +1,7 @@
 #ifndef __ZED_CONTROLLER_H__
 #define __ZED_CONTROLLER_H__
 
-
+#include <memory>
 #include <sl/Camera.hpp>
 #ifdef _WIN32
 #include <Windows.h>
